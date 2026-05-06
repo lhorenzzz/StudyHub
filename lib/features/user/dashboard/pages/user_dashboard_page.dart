@@ -6,7 +6,6 @@ import 'package:study_hub/core/models/category_model.dart';
 import 'package:study_hub/features/user/dashboard/BLoC/dashboard_bloc.dart';
 
 // ─── THEME HELPER ─────────────────────────────────────────────────────────────
-// Bundles all color values so we don't pass 10 params everywhere
 class _T {
   final bool isDark;
   final Color bg, surface, surface2, border, border2, text, textSub, textMuted;
@@ -21,7 +20,6 @@ class _T {
       textSub = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF666666),
       textMuted = isDark ? const Color(0xFF777777) : const Color(0xFF999999);
 
-  // Hover overlay color
   Color get hover =>
       isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04);
 }
@@ -29,8 +27,16 @@ class _T {
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT PAGE
 // ─────────────────────────────────────────────────────────────────────────────
-class UserDashboardPage extends StatelessWidget {
+class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
+
+  @override
+  State<UserDashboardPage> createState() => _UserDashboardPageState();
+}
+
+class _UserDashboardPageState extends State<UserDashboardPage> {
+  int _currentIndex = 0;
+  final GlobalKey<_SidebarDrawerState> _sidebarKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
@@ -49,44 +55,38 @@ class UserDashboardPage extends StatelessWidget {
 
           if (state is DashboardLoaded) {
             final t = _T(state.isDarkMode);
+
             return Scaffold(
               backgroundColor: t.bg,
-              body: Column(
+              body: Stack(
                 children: [
-                  _Navbar(t: t),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Last opened bar
-                          if (state.lastOpened != null) ...[
-                            _LastOpenedBar(resource: state.lastOpened!, t: t),
-                            const SizedBox(height: 24),
-                          ],
-                          _QuickTabs(activeTab: state.activeTab, t: t),
-                          const SizedBox(height: 24),
-                          _SectionHeader(title: 'Categories', t: t),
-                          const SizedBox(height: 12),
-                          _CategoriesGrid(
-                            categories: state.categories,
-                            selectedCategoryId: state.selectedCategoryId,
-                            t: t,
-                          ),
-                          const SizedBox(height: 28),
-                          _SectionHeader(
-                            title: _resourceSectionTitle(state.activeTab),
-                            t: t,
-                          ),
-                          const SizedBox(height: 12),
-                          _ResourcesGrid(
-                            resources: state.filteredResources,
-                            t: t,
-                          ),
-                        ],
+                  Column(
+                    children: [
+                      _Navbar(
+                        t: t,
+                        currentIndex: _currentIndex,
+                        onNavTap: (i) => setState(() => _currentIndex = i),
+                        onLogoTap: () => _sidebarKey.currentState?.toggle(),
                       ),
-                    ),
+                      Expanded(
+                        child: _AnimatedPageSwitcher(
+                          index: _currentIndex,
+                          pages: [
+                            _BrowsePage(state: state, t: t),
+                            _MyResourcesView(state: state, t: t),
+                            _UploadView(t: t),
+                            _ProfileView(t: t),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  _SidebarDrawer(
+                    key: _sidebarKey,
+                    t: t,
+                    currentIndex: _currentIndex,
+                    onNavTap: (i) => setState(() => _currentIndex = i),
+                    state: state,
                   ),
                 ],
               ),
@@ -100,8 +100,17 @@ class UserDashboardPage extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _resourceSectionTitle(DashboardTab tab) {
+// ─────────────────────────────────────────────────────────────────────────────
+// BROWSE PAGE
+// ─────────────────────────────────────────────────────────────────────────────
+class _BrowsePage extends StatelessWidget {
+  final DashboardLoaded state;
+  final _T t;
+  const _BrowsePage({required this.state, required this.t});
+
+  String _sectionTitle(DashboardTab tab) {
     switch (tab) {
       case DashboardTab.starred:
         return 'Starred';
@@ -113,6 +122,1060 @@ class UserDashboardPage extends StatelessWidget {
         return 'All Resources';
     }
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (state.lastOpened != null) ...[
+            _LastOpenedBar(resource: state.lastOpened!, t: t),
+            const SizedBox(height: 24),
+          ],
+          _QuickTabs(activeTab: state.activeTab, t: t),
+          const SizedBox(height: 24),
+          _SectionHeader(title: 'Categories', t: t),
+          const SizedBox(height: 12),
+          _CategoriesGrid(
+            categories: state.categories,
+            selectedCategoryId: state.selectedCategoryId,
+            t: t,
+          ),
+          const SizedBox(height: 28),
+          _SectionHeader(title: _sectionTitle(state.activeTab), t: t),
+          const SizedBox(height: 12),
+          _ResourcesGrid(resources: state.filteredResources, t: t),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MY RESOURCES VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+class _MyResourcesView extends StatelessWidget {
+  final DashboardLoaded state;
+  final _T t;
+  const _MyResourcesView({required this.state, required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    final myResources = state.resources
+        .where((r) => r.uploadedBy == 'admin')
+        .toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'My Resources',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.6,
+                  color: t.text,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${myResources.length} uploaded',
+                style: TextStyle(fontSize: 13, color: t.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Resources you have uploaded.',
+            style: TextStyle(fontSize: 13, color: t.textSub),
+          ),
+          const SizedBox(height: 28),
+          if (myResources.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 80),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.upload_file_outlined,
+                      size: 48,
+                      color: t.textMuted,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "You haven't uploaded anything yet.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: t.textSub,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Go to Upload to share resources.',
+                      style: TextStyle(fontSize: 13, color: t.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cols = constraints.maxWidth > 700 ? 2 : 1;
+                final cardW =
+                    (constraints.maxWidth - (cols == 2 ? 10 : 0)) / cols;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: myResources
+                      .map(
+                        (r) => _MyResourceCard(resource: r, width: cardW, t: t),
+                      )
+                      .toList(),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPLOAD VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+class _UploadView extends StatefulWidget {
+  final _T t;
+  const _UploadView({required this.t});
+
+  @override
+  State<_UploadView> createState() => _UploadViewState();
+}
+
+class _UploadViewState extends State<_UploadView> {
+  final _titleCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _tagsCtrl = TextEditingController();
+
+  String _selectedCategoryId = '';
+  String _selectedCategoryName = '';
+  String _selectedDifficulty = '';
+  String _fileName = '';
+  String _fileType = '';
+  bool _isLoading = false;
+  bool _isSuccess = false;
+  String _errorMsg = '';
+
+  final _categories = [
+    {'id': 'it', 'name': 'Information Technology', 'emoji': '💻'},
+    {'id': 'science', 'name': 'Science', 'emoji': '🧪'},
+    {'id': 'cookery', 'name': 'Cookery', 'emoji': '🍳'},
+  ];
+
+  final _fileTypes = {'pdf': '📄', 'excel': '📊', 'ppt': '📑', 'word': '📝'};
+
+  bool get _isValid =>
+      _titleCtrl.text.trim().isNotEmpty &&
+      _fileName.isNotEmpty &&
+      _selectedCategoryId.isNotEmpty &&
+      _selectedDifficulty.isNotEmpty;
+
+  void _reset() {
+    _titleCtrl.clear();
+    _descCtrl.clear();
+    _tagsCtrl.clear();
+    setState(() {
+      _selectedCategoryId = '';
+      _selectedCategoryName = '';
+      _selectedDifficulty = '';
+      _fileName = '';
+      _fileType = '';
+      _isSuccess = false;
+      _errorMsg = '';
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_isValid) {
+      setState(() => _errorMsg = 'Please fill in all required fields.');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+      _errorMsg = '';
+    });
+    await Future.delayed(const Duration(milliseconds: 1200));
+    setState(() {
+      _isLoading = false;
+      _isSuccess = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _tagsCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Upload Resource',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.6,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Share learning materials with everyone instantly.',
+                style: TextStyle(fontSize: 13, color: t.textSub),
+              ),
+              const SizedBox(height: 32),
+
+              if (_isSuccess) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: t.surface,
+                    border: Border.all(color: t.border),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('✅', style: TextStyle(fontSize: 40)),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Uploaded Successfully!',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: t.text,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '"${_titleCtrl.text}" is now live.',
+                        style: TextStyle(fontSize: 13, color: t.textSub),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      _HoverBtn(label: 'Upload Another', t: t, onTap: _reset),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                _Label('Title', required: true, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _titleCtrl, hint: 'e.g. HTML Basics', t: t),
+                const SizedBox(height: 20),
+
+                _Label('File', required: true, t: t),
+                const SizedBox(height: 8),
+                _FilePickerBox(
+                  fileName: _fileName,
+                  fileType: _fileType,
+                  fileTypes: _fileTypes,
+                  t: t,
+                  onPicked: (name, type) => setState(() {
+                    _fileName = name;
+                    _fileType = type;
+                  }),
+                  onClear: () => setState(() {
+                    _fileName = '';
+                    _fileType = '';
+                  }),
+                ),
+                const SizedBox(height: 20),
+
+                _Label('Category', required: true, t: t),
+                const SizedBox(height: 8),
+                _DropField(
+                  hint: 'Select category',
+                  value: _selectedCategoryId.isNotEmpty
+                      ? _categories.firstWhere(
+                          (c) => c['id'] == _selectedCategoryId,
+                          orElse: () => <String, String>{},
+                        )
+                      : null,
+                  items: _categories,
+                  label: (c) => '${c['emoji']}  ${c['name']}',
+                  t: t,
+                  onChanged: (c) {
+                    if (c != null && c.isNotEmpty)
+                      setState(() {
+                        _selectedCategoryId = c['id']!;
+                        _selectedCategoryName = c['name']!;
+                      });
+                  },
+                ),
+                const SizedBox(height: 20),
+
+                _Label('Difficulty', required: true, t: t),
+                const SizedBox(height: 8),
+                Row(
+                  children: ['Beginner', 'Intermediate']
+                      .map(
+                        (d) => _Chip(
+                          label: d,
+                          selected: _selectedDifficulty == d,
+                          t: t,
+                          onTap: () => setState(() => _selectedDifficulty = d),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 20),
+
+                _Label('Description', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(
+                  ctrl: _descCtrl,
+                  hint: 'Brief description of this resource...',
+                  t: t,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 20),
+
+                _Label('Tags', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _tagsCtrl, hint: 'e.g. HTML, CSS, beginner', t: t),
+                const SizedBox(height: 28),
+
+                if (_errorMsg.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A1010),
+                      border: Border.all(color: const Color(0xFF4A1A1A)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 14,
+                          color: Color(0xFFFF6B6B),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _errorMsg,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFFF6B6B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                SizedBox(
+                  width: double.infinity,
+                  child: _SubmitBtn(
+                    isLoading: _isLoading,
+                    t: t,
+                    onTap: _submit,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROFILE VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+class _ProfileView extends StatefulWidget {
+  final _T t;
+  const _ProfileView({required this.t});
+
+  @override
+  State<_ProfileView> createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<_ProfileView> {
+  bool _isEditing = false;
+  bool _isSaving = false;
+
+  String _name = 'Lhorenz Magtibay';
+  String _email = 'lhorenz@email.com';
+  String _bio = 'IT student at CatSU. Loves coding and learning new things.';
+
+  late TextEditingController _nameCtrl;
+  late TextEditingController _emailCtrl;
+  late TextEditingController _bioCtrl;
+  late TextEditingController _currPassCtrl;
+  late TextEditingController _newPassCtrl;
+
+  final int _uploaded = 6;
+  final int _done = 2;
+  final int _starred = 3;
+  final int _pinned = 1;
+
+  String get _initials {
+    final parts = _name.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: _name);
+    _emailCtrl = TextEditingController(text: _email);
+    _bioCtrl = TextEditingController(text: _bio);
+    _currPassCtrl = TextEditingController();
+    _newPassCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _bioCtrl.dispose();
+    _currPassCtrl.dispose();
+    _newPassCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleEdit() {
+    setState(() {
+      if (_isEditing) {
+        _nameCtrl.text = _name;
+        _emailCtrl.text = _email;
+        _bioCtrl.text = _bio;
+        _currPassCtrl.clear();
+        _newPassCtrl.clear();
+      }
+      _isEditing = !_isEditing;
+    });
+  }
+
+  // Add these two methods to _ProfileViewState:
+
+  void _showLogoutDialog(BuildContext context) {
+    final t = widget.t;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (_) => Dialog(
+        backgroundColor: t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: t.border),
+        ),
+        child: Container(
+          width: 360,
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Log out',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Are you sure you want to log out of your account?',
+                style: TextStyle(fontSize: 13, color: t.textSub, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _HoverBtn(
+                      label: 'Cancel',
+                      t: t,
+                      primary: false,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _HoverBtn(
+                      label: 'Log out',
+                      t: t,
+                      primary: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        // TODO: dispatch logout event / navigate to login
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final t = widget.t;
+    final confirmCtrl = TextEditingController();
+    const confirmPhrase = 'delete my account';
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (_) => StatefulBuilder(
+        builder: (dialogContext, setModalState) => Dialog(
+          backgroundColor: t.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: t.border),
+          ),
+          child: Container(
+            width: 400,
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Delete Account',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: t.text,
+                      ),
+                    ),
+                    const Spacer(),
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(dialogContext),
+                        child: Icon(Icons.close, size: 18, color: t.textMuted),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A1010),
+                    border: Border.all(color: const Color(0xFF4A1A1A)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 15,
+                        color: Color(0xFFFF6B6B),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This will permanently delete your account and all uploaded resources. This action cannot be undone.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFFFF6B6B),
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Type "$confirmPhrase" to confirm',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: t.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: confirmCtrl,
+                  style: TextStyle(fontSize: 13, color: t.text),
+                  cursorColor: t.text,
+                  onChanged: (_) => setModalState(() {}),
+                  decoration: InputDecoration(
+                    hintText: confirmPhrase,
+                    hintStyle: TextStyle(fontSize: 13, color: t.textMuted),
+                    filled: true,
+                    fillColor: t.surface2,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: t.border2),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: t.border2),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Color(0xFFCC3333)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HoverBtn(
+                        label: 'Cancel',
+                        t: t,
+                        primary: false,
+                        onTap: () => Navigator.pop(dialogContext),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: MouseRegion(
+                        cursor: confirmCtrl.text.trim() == confirmPhrase
+                            ? SystemMouseCursors.click
+                            : SystemMouseCursors.basic,
+                        child: GestureDetector(
+                          onTap: confirmCtrl.text.trim() == confirmPhrase
+                              ? () {
+                                  Navigator.pop(dialogContext);
+                                  // TODO: dispatch delete account event
+                                }
+                              : null,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            decoration: BoxDecoration(
+                              color: confirmCtrl.text.trim() == confirmPhrase
+                                  ? const Color(0xFFCC3333)
+                                  : t.surface2,
+                              border: Border.all(color: t.border2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text(
+                                'Delete Account',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      confirmCtrl.text.trim() == confirmPhrase
+                                      ? Colors.white
+                                      : t.textMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 800));
+    setState(() {
+      _name = _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : _name;
+      _email = _emailCtrl.text.trim().isNotEmpty
+          ? _emailCtrl.text.trim()
+          : _email;
+      _bio = _bioCtrl.text.trim();
+      _isEditing = false;
+      _isSaving = false;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: widget.t.surface,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: widget.t.border),
+          ),
+          content: Text(
+            'Profile saved.',
+            style: TextStyle(fontSize: 12, color: widget.t.text),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Profile',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.6,
+                      color: t.text,
+                    ),
+                  ),
+                  const Spacer(),
+                  _HoverBtn(
+                    label: _isEditing ? 'Cancel' : 'Edit Profile',
+                    t: t,
+                    primary: !_isEditing,
+                    onTap: _toggleEdit,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  border: Border.all(color: t.border),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: t.isDark
+                            ? const Color(0xFF222222)
+                            : const Color(0xFFE5E5E5),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: t.border2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _initials,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _email,
+                          style: TextStyle(fontSize: 13, color: t.textSub),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _bio,
+                          style: TextStyle(fontSize: 12, color: t.textMuted),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final cardW = (constraints.maxWidth - 10) / 2;
+                  return Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _StatCard(
+                        label: 'Uploaded',
+                        value: _uploaded,
+                        width: cardW,
+                        t: t,
+                      ),
+                      _StatCard(
+                        label: 'Done',
+                        value: _done,
+                        width: cardW,
+                        t: t,
+                      ),
+                      _StatCard(
+                        label: 'Starred',
+                        value: _starred,
+                        width: cardW,
+                        t: t,
+                      ),
+                      _StatCard(
+                        label: 'Pinned',
+                        value: _pinned,
+                        width: cardW,
+                        t: t,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 28),
+
+              if (_isEditing) ...[
+                Text(
+                  'Edit Profile',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                _Label('Name', required: true, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _nameCtrl, hint: 'Full name', t: t),
+                const SizedBox(height: 16),
+
+                _Label('Email', required: true, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _emailCtrl, hint: 'Email address', t: t),
+                const SizedBox(height: 16),
+
+                _Label('Bio', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(
+                  ctrl: _bioCtrl,
+                  hint: 'Tell us about yourself...',
+                  t: t,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 24),
+
+                Text(
+                  'Change Password',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                _Label('Current Password', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(
+                  ctrl: _currPassCtrl,
+                  hint: '••••••••',
+                  t: t,
+                  obscure: true,
+                ),
+                const SizedBox(height: 16),
+
+                _Label('New Password', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(
+                  ctrl: _newPassCtrl,
+                  hint: '••••••••',
+                  t: t,
+                  obscure: true,
+                ),
+                const SizedBox(height: 28),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: _SubmitBtn(
+                    isLoading: _isSaving,
+                    t: t,
+                    label: 'Save Changes',
+                    onTap: _save,
+                  ),
+                ),
+
+                // ── Account actions ─────────────────────────────────
+                const SizedBox(height: 12),
+                Divider(color: t.border, height: 1),
+                const SizedBox(height: 20),
+
+                Text(
+                  'Account',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: t.text,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: _SubmitBtn(
+                    isLoading: _isSaving,
+                    t: t,
+                    label: 'Save Changes',
+                    onTap: _save,
+                  ),
+                ),
+              ], // <-- close _isEditing block HERE
+              // ── Account actions ─────────────────────────────────
+              const SizedBox(height: 12),
+              Divider(color: t.border, height: 1),
+              const SizedBox(height: 20),
+
+              Text(
+                'Account',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              SizedBox(
+                width: double.infinity,
+                child: _HoverBtn(
+                  label: 'Log out',
+                  t: t,
+                  primary: false,
+                  onTap: () => _showLogoutDialog(context),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              SizedBox(
+                width: double.infinity,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () => _showDeleteAccountDialog(context),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      decoration: BoxDecoration(
+                        color: Colors.transparent,
+                        border: Border.all(color: const Color(0xFF4A1A1A)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Delete Account',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFCC3333),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final int value;
+  final double width;
+  final _T t;
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.width,
+    required this.t,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: t.surface,
+        border: Border.all(color: t.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: t.text,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 11, color: t.textMuted)),
+        ],
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,7 +1183,15 @@ class UserDashboardPage extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 class _Navbar extends StatelessWidget {
   final _T t;
-  const _Navbar({required this.t});
+  final int currentIndex;
+  final ValueChanged<int> onNavTap;
+  final VoidCallback onLogoTap;
+  const _Navbar({
+    required this.t,
+    required this.currentIndex,
+    required this.onNavTap,
+    required this.onLogoTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -133,16 +1204,39 @@ class _Navbar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _Logo(t: t),
+          _Logo(t: t, onTap: onLogoTap),
           const SizedBox(width: 24),
-          _NavLink(label: 'Browse', active: true, t: t),
-          _NavLink(label: 'My Resources', active: false, t: t),
-          _NavLink(label: 'Upload', active: false, t: t),
-          _NavLink(label: 'Profile', active: false, t: t),
+          _NavLink(
+            label: 'Browse',
+            index: 0,
+            currentIndex: currentIndex,
+            t: t,
+            onTap: onNavTap,
+          ),
+          _NavLink(
+            label: 'My Resources',
+            index: 1,
+            currentIndex: currentIndex,
+            t: t,
+            onTap: onNavTap,
+          ),
+          _NavLink(
+            label: 'Upload',
+            index: 2,
+            currentIndex: currentIndex,
+            t: t,
+            onTap: onNavTap,
+          ),
+          _NavLink(
+            label: 'Profile',
+            index: 3,
+            currentIndex: currentIndex,
+            t: t,
+            onTap: onNavTap,
+          ),
           const Spacer(),
           _SearchBar(t: t),
           const SizedBox(width: 10),
-          // Theme toggle
           _IconBtn(
             child: Text(
               t.isDark ? '☀' : '🌙',
@@ -152,7 +1246,6 @@ class _Navbar extends StatelessWidget {
             onTap: () => context.read<DashboardBloc>().add(ThemeToggled()),
           ),
           const SizedBox(width: 10),
-          // Avatar
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: Container(
@@ -183,46 +1276,61 @@ class _Navbar extends StatelessWidget {
 
 class _Logo extends StatelessWidget {
   final _T t;
-  const _Logo({required this.t});
+  final VoidCallback onTap;
+  const _Logo({required this.t, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 26,
-          height: 26,
-          decoration: BoxDecoration(
-            color: t.isDark ? Colors.white : Colors.black,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(
-            Icons.book_rounded,
-            size: 14,
-            color: t.isDark ? Colors.black : Colors.white,
-          ),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: t.isDark ? Colors.white : Colors.black,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(
+                Icons.book_rounded,
+                size: 14,
+                color: t.isDark ? Colors.black : Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'StudyHub',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.4,
+                color: t.text,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Text(
-          'StudyHub',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.4,
-            color: t.text,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _NavLink extends StatefulWidget {
   final String label;
-  final bool active;
+  final int index;
+  final int currentIndex;
   final _T t;
-  const _NavLink({required this.label, required this.active, required this.t});
+  final ValueChanged<int> onTap;
+  const _NavLink({
+    required this.label,
+    required this.index,
+    required this.currentIndex,
+    required this.t,
+    required this.onTap,
+  });
 
   @override
   State<_NavLink> createState() => _NavLinkState();
@@ -233,31 +1341,33 @@ class _NavLinkState extends State<_NavLink> {
 
   @override
   Widget build(BuildContext context) {
-    final isHighlighted = widget.active || _hover;
+    final isActive = widget.currentIndex == widget.index;
+    final isHighlighted = isActive || _hover;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: Container(
-        margin: const EdgeInsets.only(right: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-        decoration: BoxDecoration(
-          color: isHighlighted ? widget.t.hover : Colors.transparent,
-          borderRadius: BorderRadius.circular(7),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: isHighlighted ? widget.t.text : widget.t.textSub,
-            fontWeight: widget.active ? FontWeight.w500 : FontWeight.w400,
+      child: GestureDetector(
+        onTap: () => widget.onTap(widget.index),
+        child: Container(
+          margin: const EdgeInsets.only(right: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+          decoration: BoxDecoration(
+            color: isHighlighted ? widget.t.hover : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 13,
+              color: isHighlighted ? widget.t.text : widget.t.textSub,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+            ),
           ),
         ),
       ),
     );
   }
-
-  String get label => widget.label;
 }
 
 class _SearchBar extends StatelessWidget {
@@ -338,6 +1448,477 @@ class _IconBtnState extends State<_IconBtn> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SIDEBAR DRAWER
+// ─────────────────────────────────────────────────────────────────────────────
+class _SidebarDrawer extends StatefulWidget {
+  final _T t;
+  final int currentIndex;
+  final ValueChanged<int> onNavTap;
+  final DashboardLoaded state;
+  const _SidebarDrawer({
+    super.key,
+    required this.t,
+    required this.currentIndex,
+    required this.onNavTap,
+    required this.state,
+  });
+
+  @override
+  State<_SidebarDrawer> createState() => _SidebarDrawerState();
+}
+
+class _SidebarDrawerState extends State<_SidebarDrawer>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _slide;
+  late Animation<double> _fade;
+  bool _open = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _slide = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void toggle() {
+    setState(() => _open = !_open);
+    if (_open) {
+      _ctrl.forward();
+    } else {
+      _ctrl.reverse();
+    }
+  }
+
+  void close() {
+    if (_open) toggle();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+
+    return Stack(
+      children: [
+        // Scrim
+        if (_open)
+          Positioned.fill(
+            child: FadeTransition(
+              opacity: _fade,
+              child: GestureDetector(
+                onTap: close,
+                child: Container(color: Colors.black.withOpacity(0.45)),
+              ),
+            ),
+          ),
+
+        // Drawer panel
+        SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(-1, 0),
+            end: Offset.zero,
+          ).animate(_slide),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              width: 260,
+              decoration: BoxDecoration(
+                color: t.surface,
+                border: Border(right: BorderSide(color: t.border)),
+              ),
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+                      child: Row(
+                        children: [
+                          _SidebarLogo(t: t),
+                          const Spacer(),
+                          MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: close,
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: t.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Divider(color: t.border, height: 1),
+
+                    // Scrollable content
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _SidebarItem(
+                              icon: Icons.home_outlined,
+                              label: 'Browse',
+                              isActive: widget.currentIndex == 0,
+                              t: t,
+                              onTap: () {
+                                widget.onNavTap(0);
+                                close();
+                              },
+                            ),
+                            _SidebarItem(
+                              icon: Icons.folder_outlined,
+                              label: 'My Resources',
+                              isActive: widget.currentIndex == 1,
+                              t: t,
+                              onTap: () {
+                                widget.onNavTap(1);
+                                close();
+                              },
+                            ),
+                            _SidebarItem(
+                              icon: Icons.star_outline_rounded,
+                              label: 'Starred',
+                              isActive: false,
+                              t: t,
+                              onTap: () {
+                                context.read<DashboardBloc>().add(
+                                  DashboardTabChanged(DashboardTab.starred),
+                                );
+                                widget.onNavTap(0);
+                                close();
+                              },
+                            ),
+                            _SidebarItem(
+                              icon: Icons.push_pin_outlined,
+                              label: 'Pinned',
+                              isActive: false,
+                              t: t,
+                              onTap: () {
+                                context.read<DashboardBloc>().add(
+                                  DashboardTabChanged(DashboardTab.pinned),
+                                );
+                                widget.onNavTap(0);
+                                close();
+                              },
+                            ),
+                            _SidebarItem(
+                              icon: Icons.history_rounded,
+                              label: 'Recently Opened',
+                              isActive: false,
+                              t: t,
+                              onTap: () {
+                                context.read<DashboardBloc>().add(
+                                  DashboardTabChanged(DashboardTab.recent),
+                                );
+                                widget.onNavTap(0);
+                                close();
+                              },
+                            ),
+
+                            const SizedBox(height: 8),
+                            Divider(
+                              color: t.border,
+                              height: 1,
+                              indent: 20,
+                              endIndent: 20,
+                            ),
+                            const SizedBox(height: 8),
+
+                            _SidebarSectionLabel(label: 'CATEGORIES', t: t),
+                            const SizedBox(height: 4),
+                            ...widget.state.categories.map(
+                              (cat) => _SidebarCategoryItem(
+                                emoji: cat.emoji,
+                                label: cat.name,
+                                count: cat.resourceCount,
+                                isSelected:
+                                    widget.state.selectedCategoryId == cat.id,
+                                t: t,
+                                onTap: () {
+                                  context.read<DashboardBloc>().add(
+                                    CategorySelected(cat.id),
+                                  );
+                                  widget.onNavTap(0);
+                                  close();
+                                },
+                              ),
+                            ),
+                            _SidebarCategoryItem(
+                              emoji: '⊞',
+                              label: 'All Categories',
+                              count: null,
+                              isSelected: false,
+                              t: t,
+                              onTap: () {
+                                context.read<DashboardBloc>().add(
+                                  CategorySelected(''),
+                                );
+                                widget.onNavTap(0);
+                                close();
+                              },
+                            ),
+
+                            const SizedBox(height: 8),
+                            Divider(
+                              color: t.border,
+                              height: 1,
+                              indent: 20,
+                              endIndent: 20,
+                            ),
+                            const SizedBox(height: 8),
+
+                            _SidebarSectionLabel(label: 'QUICK ACTIONS', t: t),
+                            const SizedBox(height: 4),
+                            _SidebarItem(
+                              icon: Icons.upload_outlined,
+                              label: 'Upload Resource',
+                              isActive: widget.currentIndex == 2,
+                              t: t,
+                              onTap: () {
+                                widget.onNavTap(2);
+                                close();
+                              },
+                            ),
+                            _SidebarItem(
+                              icon: Icons.add_box_outlined,
+                              label: 'Create Category',
+                              isActive: false,
+                              t: t,
+                              onTap: () {
+                                close();
+                                Future.delayed(
+                                  const Duration(milliseconds: 300),
+                                  () => _showAddCategoryModal(context, t),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Sidebar sub-widgets ───────────────────────────────────────────────────────
+class _SidebarLogo extends StatelessWidget {
+  final _T t;
+  const _SidebarLogo({required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: t.isDark ? Colors.white : Colors.black,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(
+            Icons.book_rounded,
+            size: 15,
+            color: t.isDark ? Colors.black : Colors.white,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          'StudyHub',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.4,
+            color: t.text,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SidebarSectionLabel extends StatelessWidget {
+  final String label;
+  final _T t;
+  const _SidebarSectionLabel({required this.label, required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.1,
+          color: t.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final _T t;
+  final VoidCallback onTap;
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.t,
+    required this.onTap,
+  });
+
+  @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final highlighted = widget.isActive || _hover;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: highlighted
+                ? (t.isDark ? const Color(0xFF1E1E1E) : const Color(0xFFEEEEEE))
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                widget.icon,
+                size: 18,
+                color: highlighted ? t.text : t.textSub,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: widget.isActive
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                  color: highlighted ? t.text : t.textSub,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarCategoryItem extends StatefulWidget {
+  final String emoji, label;
+  final int? count;
+  final bool isSelected;
+  final _T t;
+  final VoidCallback onTap;
+  const _SidebarCategoryItem({
+    required this.emoji,
+    required this.label,
+    required this.count,
+    required this.isSelected,
+    required this.t,
+    required this.onTap,
+  });
+
+  @override
+  State<_SidebarCategoryItem> createState() => _SidebarCategoryItemState();
+}
+
+class _SidebarCategoryItemState extends State<_SidebarCategoryItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final highlighted = widget.isSelected || _hover;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: highlighted ? t.hover : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Text(widget.emoji, style: const TextStyle(fontSize: 15)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: highlighted ? t.text : t.textSub,
+                  ),
+                ),
+              ),
+              if (widget.count != null)
+                Text(
+                  '${widget.count}',
+                  style: TextStyle(fontSize: 12, color: t.textMuted),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LAST OPENED BAR
 // ─────────────────────────────────────────────────────────────────────────────
 class _LastOpenedBar extends StatelessWidget {
@@ -402,7 +1983,6 @@ class _LastOpenedBar extends StatelessWidget {
               ],
             ),
           ),
-          // Open button
           MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
@@ -453,18 +2033,25 @@ class _QuickTabs extends StatelessWidget {
       (DashboardTab.recent, '🕐  Recently Opened'),
     ];
 
-    return Wrap(
-      spacing: 6,
-      children: tabs.map((tab) {
-        final isActive = activeTab == tab.$1;
-        return _TabChip(
-          label: tab.$2,
-          isActive: isActive,
-          t: t,
-          onTap: () =>
-              context.read<DashboardBloc>().add(DashboardTabChanged(tab.$1)),
-        );
-      }).toList(),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: tabs.map((tab) {
+          final isActive = activeTab == tab.$1;
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: _TabChip(
+              label: tab.$2,
+              isActive: isActive,
+              t: t,
+              onTap: () => context.read<DashboardBloc>().add(
+                DashboardTabChanged(tab.$1),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }
@@ -731,7 +2318,6 @@ class _AddCategoryCardState extends State<_AddCategoryCard> {
             color: _hover ? widget.t.hover : Colors.transparent,
             border: Border.all(
               color: _hover ? widget.t.border2 : widget.t.border,
-              style: BorderStyle.solid,
             ),
             borderRadius: BorderRadius.circular(10),
           ),
@@ -842,7 +2428,6 @@ class _ResourceCardState extends State<_ResourceCard> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // File icon
               Container(
                 width: 36,
                 height: 36,
@@ -859,7 +2444,6 @@ class _ResourceCardState extends State<_ResourceCard> {
                 ),
               ),
               const SizedBox(width: 12),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,16 +2464,12 @@ class _ResourceCardState extends State<_ResourceCard> {
                       style: TextStyle(fontSize: 12, color: t.textSub),
                     ),
                     const SizedBox(height: 10),
-
-                    // Bottom row: tags + actions
                     Row(
                       children: [
                         _Tag(label: r.typeLabel, t: t),
                         const SizedBox(width: 4),
                         if (r.isDone) _Tag(label: '✓ Done', t: t),
                         const Spacer(),
-
-                        // Mark done
                         if (!r.isDone)
                           _ActionText(
                             label: 'Mark done',
@@ -897,8 +2477,6 @@ class _ResourceCardState extends State<_ResourceCard> {
                             onTap: () => bloc.add(ResourceMarkedDone(r.id)),
                           ),
                         const SizedBox(width: 10),
-
-                        // Pin
                         _ActionIcon(
                           icon: r.isPinned ? '📌' : '📍',
                           active: r.isPinned,
@@ -906,8 +2484,6 @@ class _ResourceCardState extends State<_ResourceCard> {
                           onTap: () => bloc.add(ResourcePinToggled(r.id)),
                         ),
                         const SizedBox(width: 8),
-
-                        // Star
                         _ActionIcon(
                           icon: r.isStarred ? '⭐' : '☆',
                           active: r.isStarred,
@@ -1036,8 +2612,6 @@ class _ActionIconState extends State<_ActionIcon> {
 // ─────────────────────────────────────────────────────────────────────────────
 // MODALS
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Resource detail modal — shown when user opens a resource
 void _showResourceModal(BuildContext context, ResourceModel r, _T t) {
   showDialog(
     context: context,
@@ -1055,7 +2629,6 @@ void _showResourceModal(BuildContext context, ResourceModel r, _T t) {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row
             Row(
               children: [
                 Container(
@@ -1094,7 +2667,6 @@ void _showResourceModal(BuildContext context, ResourceModel r, _T t) {
                     ],
                   ),
                 ),
-                // Close button
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
@@ -1105,8 +2677,6 @@ void _showResourceModal(BuildContext context, ResourceModel r, _T t) {
               ],
             ),
             const SizedBox(height: 24),
-
-            // Details
             _ModalRow(label: 'File Type', value: r.typeLabel, t: t),
             _ModalRow(label: 'Category', value: r.categoryName, t: t),
             _ModalRow(label: 'Difficulty', value: r.difficultyLabel, t: t),
@@ -1122,11 +2692,8 @@ void _showResourceModal(BuildContext context, ResourceModel r, _T t) {
               t: t,
             ),
             const SizedBox(height: 24),
-
-            // Action buttons
             Row(
               children: [
-                // Download placeholder
                 Expanded(
                   child: _ModalBtn(
                     label: '↓  Download',
@@ -1152,7 +2719,6 @@ void _showResourceModal(BuildContext context, ResourceModel r, _T t) {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Mark done
                 if (!r.isDone)
                   Expanded(
                     child: _ModalBtn(
@@ -1277,7 +2843,6 @@ class _ModalBtnState extends State<_ModalBtn> {
   }
 }
 
-// Add Category modal
 void _showAddCategoryModal(BuildContext context, _T t) {
   final nameCtrl = TextEditingController();
   String selectedEmoji = '📁';
@@ -1313,7 +2878,6 @@ void _showAddCategoryModal(BuildContext context, _T t) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Title
               Row(
                 children: [
                   Text(
@@ -1335,8 +2899,6 @@ void _showAddCategoryModal(BuildContext context, _T t) {
                 ],
               ),
               const SizedBox(height: 24),
-
-              // Emoji picker
               Text(
                 'Icon',
                 style: TextStyle(
@@ -1379,8 +2941,6 @@ void _showAddCategoryModal(BuildContext context, _T t) {
                 }).toList(),
               ),
               const SizedBox(height: 20),
-
-              // Name field
               Text(
                 'Category Name',
                 style: TextStyle(
@@ -1420,8 +2980,6 @@ void _showAddCategoryModal(BuildContext context, _T t) {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Add button
               SizedBox(
                 width: double.infinity,
                 child: _ModalBtn(
@@ -1444,4 +3002,794 @@ void _showAddCategoryModal(BuildContext context, _T t) {
       ),
     ),
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANIMATED PAGE SWITCHER
+// ─────────────────────────────────────────────────────────────────────────────
+class _AnimatedPageSwitcher extends StatefulWidget {
+  final int index;
+  final List<Widget> pages;
+  const _AnimatedPageSwitcher({required this.index, required this.pages});
+
+  @override
+  State<_AnimatedPageSwitcher> createState() => _AnimatedPageSwitcherState();
+}
+
+class _AnimatedPageSwitcherState extends State<_AnimatedPageSwitcher>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
+  late Animation<Offset> _slide;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.index;
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.03),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedPageSwitcher old) {
+    super.didUpdateWidget(old);
+    if (old.index != widget.index) {
+      _ctrl.reverse().then((_) {
+        setState(() => _currentIndex = widget.index);
+        _ctrl.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: widget.pages[_currentIndex],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED HELPER WIDGETS
+// ─────────────────────────────────────────────────────────────────────────────
+class _HoverBtn extends StatefulWidget {
+  final String label;
+  final _T t;
+  final bool primary;
+  final VoidCallback onTap;
+  const _HoverBtn({
+    required this.label,
+    required this.t,
+    this.primary = true,
+    required this.onTap,
+  });
+
+  @override
+  State<_HoverBtn> createState() => _HoverBtnState();
+}
+
+class _HoverBtnState extends State<_HoverBtn> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final bg = widget.primary
+        ? (t.isDark ? Colors.white : Colors.black)
+        : t.surface2;
+    final fg = widget.primary
+        ? (t.isDark ? Colors.black : Colors.white)
+        : t.text;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: _hover
+                ? (widget.primary
+                      ? (t.isDark
+                            ? const Color(0xFFDDDDDD)
+                            : const Color(0xFF222222))
+                      : t.surface2)
+                : bg,
+            border: Border.all(color: t.border2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: fg,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Label extends StatelessWidget {
+  final String label;
+  final bool required;
+  final _T t;
+  const _Label(this.label, {required this.required, required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: t.text,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          required ? '*' : 'optional',
+          style: TextStyle(fontSize: required ? 13 : 11, color: t.textMuted),
+        ),
+      ],
+    );
+  }
+}
+
+class _Field extends StatelessWidget {
+  final TextEditingController ctrl;
+  final String hint;
+  final _T t;
+  final int maxLines;
+  final bool obscure;
+  final ValueChanged<String>? onChanged;
+  const _Field({
+    required this.ctrl,
+    required this.hint,
+    required this.t,
+    this.maxLines = 1,
+    this.obscure = false,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: ctrl,
+      maxLines: maxLines,
+      obscureText: obscure,
+      style: TextStyle(fontSize: 13, color: t.text),
+      cursorColor: t.text,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 13, color: t.textMuted),
+        filled: true,
+        fillColor: t.surface2,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: t.border2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: t.border2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(
+            color: t.isDark ? Colors.white54 : Colors.black38,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilePickerBox extends StatefulWidget {
+  final String fileName;
+  final String fileType;
+  final Map<String, String> fileTypes;
+  final _T t;
+  final Function(String name, String type) onPicked;
+  final VoidCallback onClear;
+  const _FilePickerBox({
+    required this.fileName,
+    required this.fileType,
+    required this.fileTypes,
+    required this.t,
+    required this.onPicked,
+    required this.onClear,
+  });
+
+  @override
+  State<_FilePickerBox> createState() => _FilePickerBoxState();
+}
+
+class _FilePickerBoxState extends State<_FilePickerBox> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final hasFile = widget.fileName.isNotEmpty;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: hasFile ? null : () => _showPicker(context),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          decoration: BoxDecoration(
+            color: hasFile
+                ? t.surface
+                : (_hover ? t.surface2 : Colors.transparent),
+            border: Border.all(color: _hover ? t.border2 : t.border),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: hasFile
+              ? Row(
+                  children: [
+                    Text(
+                      widget.fileTypes[widget.fileType] ?? '📄',
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        widget.fileName,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: t.text,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: widget.onClear,
+                      child: Icon(Icons.close, size: 16, color: t.textMuted),
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Icon(Icons.upload_outlined, size: 28, color: t.textMuted),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Click to select a file',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: t.textSub,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'PDF, Excel, PPT, Word',
+                      style: TextStyle(fontSize: 11, color: t.textMuted),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  void _showPicker(BuildContext context) {
+    final sampleFiles = {
+      'pdf': 'sample_document.pdf',
+      'excel': 'data_sheet.xlsx',
+      'ppt': 'presentation.pptx',
+      'word': 'notes.docx',
+    };
+    final t = widget.t;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (_) => Dialog(
+        backgroundColor: t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: t.border),
+        ),
+        child: Container(
+          width: 360,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select File Type',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Simulated file picker — real one needs file_picker package.',
+                style: TextStyle(fontSize: 11, color: t.textMuted, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              ...widget.fileTypes.entries.map(
+                (e) => MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () {
+                      widget.onPicked(sampleFiles[e.key]!, e.key);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: t.surface2,
+                        border: Border.all(color: t.border2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(e.value, style: const TextStyle(fontSize: 18)),
+                          const SizedBox(width: 12),
+                          Text(
+                            e.key.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: t.text,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DropField extends StatelessWidget {
+  final String hint;
+  final Map<String, String>? value;
+  final List<Map<String, String>> items;
+  final String Function(Map<String, String>) label;
+  final _T t;
+  final ValueChanged<Map<String, String>?> onChanged;
+  const _DropField({
+    required this.hint,
+    required this.value,
+    required this.items,
+    required this.label,
+    required this.t,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: t.surface2,
+        border: Border.all(color: t.border2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DropdownButton<Map<String, String>>(
+        value: value?.isEmpty == true ? null : value,
+        isExpanded: true,
+        underline: const SizedBox(),
+        dropdownColor: t.surface,
+        hint: Text(hint, style: TextStyle(fontSize: 13, color: t.textMuted)),
+        style: TextStyle(fontSize: 13, color: t.text),
+        icon: Icon(Icons.keyboard_arrow_down, size: 18, color: t.textMuted),
+        items: items
+            .map(
+              (item) => DropdownMenuItem(
+                value: item,
+                child: Text(
+                  label(item),
+                  style: TextStyle(fontSize: 13, color: t.text),
+                ),
+              ),
+            )
+            .toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+class _Chip extends StatefulWidget {
+  final String label;
+  final bool selected;
+  final _T t;
+  final VoidCallback onTap;
+  const _Chip({
+    required this.label,
+    required this.selected,
+    required this.t,
+    required this.onTap,
+  });
+
+  @override
+  State<_Chip> createState() => _ChipState();
+}
+
+class _ChipState extends State<_Chip> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? (t.isDark ? Colors.white : Colors.black)
+                : _hover
+                ? t.surface2
+                : Colors.transparent,
+            border: Border.all(
+              color: widget.selected
+                  ? (t.isDark ? Colors.white : Colors.black)
+                  : t.border2,
+            ),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: widget.selected ? FontWeight.w600 : FontWeight.w400,
+              color: widget.selected
+                  ? (t.isDark ? Colors.black : Colors.white)
+                  : t.textSub,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SubmitBtn extends StatefulWidget {
+  final bool isLoading;
+  final _T t;
+  final String label;
+  final VoidCallback onTap;
+  const _SubmitBtn({
+    required this.isLoading,
+    required this.t,
+    this.label = 'Upload Resource',
+    required this.onTap,
+  });
+
+  @override
+  State<_SubmitBtn> createState() => _SubmitBtnState();
+}
+
+class _SubmitBtnState extends State<_SubmitBtn> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    return MouseRegion(
+      cursor: widget.isLoading
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.isLoading ? null : widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          height: 48,
+          decoration: BoxDecoration(
+            color: widget.isLoading
+                ? t.surface2
+                : _hover
+                ? (t.isDark ? const Color(0xFFDDDDDD) : const Color(0xFF222222))
+                : (t.isDark ? Colors.white : Colors.black),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(
+            child: widget.isLoading
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: t.textMuted,
+                    ),
+                  )
+                : Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: t.isDark ? Colors.black : Colors.white,
+                    ),
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MyResourceCard extends StatefulWidget {
+  final ResourceModel resource;
+  final double width;
+  final _T t;
+  const _MyResourceCard({
+    required this.resource,
+    required this.width,
+    required this.t,
+  });
+
+  @override
+  State<_MyResourceCard> createState() => _MyResourceCardState();
+}
+
+class _MyResourceCardState extends State<_MyResourceCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.resource;
+    final t = widget.t;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        width: widget.width,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _hover
+              ? (t.isDark ? const Color(0xFF161616) : const Color(0xFFF0F0F0))
+              : t.surface,
+          border: Border.all(color: _hover ? t.border2 : t.border),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: t.surface2,
+                border: Border.all(color: t.border2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(r.typeEmoji, style: const TextStyle(fontSize: 16)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    r.title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${r.categoryName} · ${r.difficultyLabel}',
+                    style: TextStyle(fontSize: 12, color: t.textSub),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: t.surface2,
+                          border: Border.all(color: t.border2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          r.typeLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: t.textSub,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${r.uploadedAt.day}/${r.uploadedAt.month}/${r.uploadedAt.year}',
+                        style: TextStyle(fontSize: 11, color: t.textMuted),
+                      ),
+                      const SizedBox(width: 12),
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: () => _showDeleteDialog(context, r, t),
+                          child: Icon(
+                            Icons.delete_outline,
+                            size: 16,
+                            color: t.textMuted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context, ResourceModel r, _T t) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (_) => Dialog(
+        backgroundColor: t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: t.border),
+        ),
+        child: Container(
+          width: 360,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Delete Resource',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: t.text,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Are you sure you want to delete "${r.title}"? This cannot be undone.',
+                style: TextStyle(fontSize: 13, color: t.textSub, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _HoverBtn(
+                      label: 'Cancel',
+                      t: t,
+                      primary: false,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: t.surface,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(color: t.border),
+                              ),
+                              content: Text(
+                                'Deleted "${r.title}"',
+                                style: TextStyle(fontSize: 12, color: t.text),
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCC3333),
+                            border: Border.all(color: t.border2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Delete',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
