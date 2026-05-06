@@ -5,6 +5,23 @@ import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/core/models/category_model.dart';
 import 'package:study_hub/features/user/dashboard/BLoC/dashboard_bloc.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// user_dashboard_page.dart
+//
+// PAGES (wired in _AnimatedPageSwitcher):
+//   0 — _BrowsePage        Browse all resources and categories
+//   1 — _MyResourcesView   Resources uploaded by the current user
+//   2 — _UploadView        Upload a new resource
+//   3 — _ProfileView       User profile, stats, edit, logout
+//
+// SHARED WIDGETS (bottom of file):
+//   _HoverBtn, _Label, _Field, _SubmitBtn, _Chip,
+//   _FilePickerBox, _DropField, _Tag, _ActionIcon, _ActionText
+//
+// MODALS:
+//   _showResourceModal, _showAddCategoryModal
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── THEME HELPER ─────────────────────────────────────────────────────────────
 class _T {
   final bool isDark;
@@ -36,7 +53,7 @@ class UserDashboardPage extends StatefulWidget {
 
 class _UserDashboardPageState extends State<UserDashboardPage> {
   int _currentIndex = 0;
-  final GlobalKey<_SidebarDrawerState> _sidebarKey = GlobalKey();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
@@ -57,36 +74,35 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
             final t = _T(state.isDarkMode);
 
             return Scaffold(
+              key: _scaffoldKey,
               backgroundColor: t.bg,
-              body: Stack(
+              drawer: _MobileDrawer(
+                t: t,
+                currentIndex: _currentIndex,
+                onNavTap: (i) {
+                  setState(() => _currentIndex = i);
+                  _scaffoldKey.currentState?.closeEndDrawer();
+                },
+              ),
+              body: Column(
                 children: [
-                  Column(
-                    children: [
-                      _Navbar(
-                        t: t,
-                        currentIndex: _currentIndex,
-                        onNavTap: (i) => setState(() => _currentIndex = i),
-                        onLogoTap: () => _sidebarKey.currentState?.toggle(),
-                      ),
-                      Expanded(
-                        child: _AnimatedPageSwitcher(
-                          index: _currentIndex,
-                          pages: [
-                            _BrowsePage(state: state, t: t),
-                            _MyResourcesView(state: state, t: t),
-                            _UploadView(t: t),
-                            _ProfileView(t: t),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  _SidebarDrawer(
-                    key: _sidebarKey,
+                  _Navbar(
                     t: t,
                     currentIndex: _currentIndex,
                     onNavTap: (i) => setState(() => _currentIndex = i),
-                    state: state,
+                    onLogoTap: () {}, // no-op, logo no longer opens sidebar
+                    scaffoldKey: _scaffoldKey,
+                  ),
+                  Expanded(
+                    child: _AnimatedPageSwitcher(
+                      index: _currentIndex,
+                      pages: [
+                        _BrowsePage(state: state, t: t),
+                        _MyResourcesView(state: state, t: t),
+                        _UploadView(t: t),
+                        _ProfileView(t: t),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1186,15 +1202,19 @@ class _Navbar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onNavTap;
   final VoidCallback onLogoTap;
+  final GlobalKey<ScaffoldState>? scaffoldKey;
   const _Navbar({
     required this.t,
     required this.currentIndex,
     required this.onNavTap,
     required this.onLogoTap,
+    this.scaffoldKey,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isNarrow = MediaQuery.of(context).size.width < 800;
+
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -1205,38 +1225,39 @@ class _Navbar extends StatelessWidget {
       child: Row(
         children: [
           _Logo(t: t, onTap: onLogoTap),
-          const SizedBox(width: 24),
-          _NavLink(
-            label: 'Browse',
-            index: 0,
-            currentIndex: currentIndex,
-            t: t,
-            onTap: onNavTap,
-          ),
-          _NavLink(
-            label: 'My Resources',
-            index: 1,
-            currentIndex: currentIndex,
-            t: t,
-            onTap: onNavTap,
-          ),
-          _NavLink(
-            label: 'Upload',
-            index: 2,
-            currentIndex: currentIndex,
-            t: t,
-            onTap: onNavTap,
-          ),
-          _NavLink(
-            label: 'Profile',
-            index: 3,
-            currentIndex: currentIndex,
-            t: t,
-            onTap: onNavTap,
-          ),
+          if (!isNarrow) ...[
+            const SizedBox(width: 24),
+            _NavLink(
+              label: 'Browse',
+              index: 0,
+              currentIndex: currentIndex,
+              t: t,
+              onTap: onNavTap,
+            ),
+            _NavLink(
+              label: 'My Resources',
+              index: 1,
+              currentIndex: currentIndex,
+              t: t,
+              onTap: onNavTap,
+            ),
+            _NavLink(
+              label: 'Upload',
+              index: 2,
+              currentIndex: currentIndex,
+              t: t,
+              onTap: onNavTap,
+            ),
+            _NavLink(
+              label: 'Profile',
+              index: 3,
+              currentIndex: currentIndex,
+              t: t,
+              onTap: onNavTap,
+            ),
+          ],
           const Spacer(),
-          _SearchBar(t: t),
-          const SizedBox(width: 10),
+          if (!isNarrow) ...[_SearchBar(t: t), const SizedBox(width: 10)],
           _IconBtn(
             child: Text(
               t.isDark ? '☀' : '🌙',
@@ -1246,28 +1267,35 @@ class _Navbar extends StatelessWidget {
             onTap: () => context.read<DashboardBloc>().add(ThemeToggled()),
           ),
           const SizedBox(width: 10),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: t.surface2,
-                shape: BoxShape.circle,
-                border: Border.all(color: t.border),
-              ),
-              child: Center(
-                child: Text(
-                  'LM',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: t.text,
+          if (!isNarrow)
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: t.surface2,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: t.border),
+                ),
+                child: Center(
+                  child: Text(
+                    'LM',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: t.text,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+          if (isNarrow)
+            _IconBtn(
+              child: Icon(Icons.menu_rounded, size: 16, color: t.text),
+              t: t,
+              onTap: () => scaffoldKey?.currentState?.openDrawer(),
+            ),
         ],
       ),
     );
@@ -1450,278 +1478,6 @@ class _IconBtnState extends State<_IconBtn> {
 // ─────────────────────────────────────────────────────────────────────────────
 // SIDEBAR DRAWER
 // ─────────────────────────────────────────────────────────────────────────────
-class _SidebarDrawer extends StatefulWidget {
-  final _T t;
-  final int currentIndex;
-  final ValueChanged<int> onNavTap;
-  final DashboardLoaded state;
-  const _SidebarDrawer({
-    super.key,
-    required this.t,
-    required this.currentIndex,
-    required this.onNavTap,
-    required this.state,
-  });
-
-  @override
-  State<_SidebarDrawer> createState() => _SidebarDrawerState();
-}
-
-class _SidebarDrawerState extends State<_SidebarDrawer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _slide;
-  late Animation<double> _fade;
-  bool _open = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 280),
-    );
-    _slide = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
-    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  void toggle() {
-    setState(() => _open = !_open);
-    if (_open) {
-      _ctrl.forward();
-    } else {
-      _ctrl.reverse();
-    }
-  }
-
-  void close() {
-    if (_open) toggle();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.t;
-
-    return Stack(
-      children: [
-        // Scrim
-        if (_open)
-          Positioned.fill(
-            child: FadeTransition(
-              opacity: _fade,
-              child: GestureDetector(
-                onTap: close,
-                child: Container(color: Colors.black.withOpacity(0.45)),
-              ),
-            ),
-          ),
-
-        // Drawer panel
-        SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(-1, 0),
-            end: Offset.zero,
-          ).animate(_slide),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              width: 260,
-              decoration: BoxDecoration(
-                color: t.surface,
-                border: Border(right: BorderSide(color: t.border)),
-              ),
-              child: SafeArea(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                      child: Row(
-                        children: [
-                          _SidebarLogo(t: t),
-                          const Spacer(),
-                          MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTap: close,
-                              child: Icon(
-                                Icons.close_rounded,
-                                size: 18,
-                                color: t.textMuted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    Divider(color: t.border, height: 1),
-
-                    // Scrollable content
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _SidebarItem(
-                              icon: Icons.home_outlined,
-                              label: 'Browse',
-                              isActive: widget.currentIndex == 0,
-                              t: t,
-                              onTap: () {
-                                widget.onNavTap(0);
-                                close();
-                              },
-                            ),
-                            _SidebarItem(
-                              icon: Icons.folder_outlined,
-                              label: 'My Resources',
-                              isActive: widget.currentIndex == 1,
-                              t: t,
-                              onTap: () {
-                                widget.onNavTap(1);
-                                close();
-                              },
-                            ),
-                            _SidebarItem(
-                              icon: Icons.star_outline_rounded,
-                              label: 'Starred',
-                              isActive: false,
-                              t: t,
-                              onTap: () {
-                                context.read<DashboardBloc>().add(
-                                  DashboardTabChanged(DashboardTab.starred),
-                                );
-                                widget.onNavTap(0);
-                                close();
-                              },
-                            ),
-                            _SidebarItem(
-                              icon: Icons.push_pin_outlined,
-                              label: 'Pinned',
-                              isActive: false,
-                              t: t,
-                              onTap: () {
-                                context.read<DashboardBloc>().add(
-                                  DashboardTabChanged(DashboardTab.pinned),
-                                );
-                                widget.onNavTap(0);
-                                close();
-                              },
-                            ),
-                            _SidebarItem(
-                              icon: Icons.history_rounded,
-                              label: 'Recently Opened',
-                              isActive: false,
-                              t: t,
-                              onTap: () {
-                                context.read<DashboardBloc>().add(
-                                  DashboardTabChanged(DashboardTab.recent),
-                                );
-                                widget.onNavTap(0);
-                                close();
-                              },
-                            ),
-
-                            const SizedBox(height: 8),
-                            Divider(
-                              color: t.border,
-                              height: 1,
-                              indent: 20,
-                              endIndent: 20,
-                            ),
-                            const SizedBox(height: 8),
-
-                            _SidebarSectionLabel(label: 'CATEGORIES', t: t),
-                            const SizedBox(height: 4),
-                            ...widget.state.categories.map(
-                              (cat) => _SidebarCategoryItem(
-                                emoji: cat.emoji,
-                                label: cat.name,
-                                count: cat.resourceCount,
-                                isSelected:
-                                    widget.state.selectedCategoryId == cat.id,
-                                t: t,
-                                onTap: () {
-                                  context.read<DashboardBloc>().add(
-                                    CategorySelected(cat.id),
-                                  );
-                                  widget.onNavTap(0);
-                                  close();
-                                },
-                              ),
-                            ),
-                            _SidebarCategoryItem(
-                              emoji: '⊞',
-                              label: 'All Categories',
-                              count: null,
-                              isSelected: false,
-                              t: t,
-                              onTap: () {
-                                context.read<DashboardBloc>().add(
-                                  CategorySelected(''),
-                                );
-                                widget.onNavTap(0);
-                                close();
-                              },
-                            ),
-
-                            const SizedBox(height: 8),
-                            Divider(
-                              color: t.border,
-                              height: 1,
-                              indent: 20,
-                              endIndent: 20,
-                            ),
-                            const SizedBox(height: 8),
-
-                            _SidebarSectionLabel(label: 'QUICK ACTIONS', t: t),
-                            const SizedBox(height: 4),
-                            _SidebarItem(
-                              icon: Icons.upload_outlined,
-                              label: 'Upload Resource',
-                              isActive: widget.currentIndex == 2,
-                              t: t,
-                              onTap: () {
-                                widget.onNavTap(2);
-                                close();
-                              },
-                            ),
-                            _SidebarItem(
-                              icon: Icons.add_box_outlined,
-                              label: 'Create Category',
-                              isActive: false,
-                              t: t,
-                              onTap: () {
-                                close();
-                                Future.delayed(
-                                  const Duration(milliseconds: 300),
-                                  () => _showAddCategoryModal(context, t),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 // ── Sidebar sub-widgets ───────────────────────────────────────────────────────
 class _SidebarLogo extends StatelessWidget {
@@ -3788,6 +3544,178 @@ class _MyResourceCardState extends State<_MyResourceCard> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MobileDrawer extends StatelessWidget {
+  final _T t;
+  final int currentIndex;
+  final ValueChanged<int> onNavTap;
+  const _MobileDrawer({
+    required this.t,
+    required this.currentIndex,
+    required this.onNavTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (Icons.home_outlined, 'Browse', 0),
+      (Icons.folder_outlined, 'My Resources', 1),
+      (Icons.upload_outlined, 'Upload', 2),
+      (Icons.person_outline_rounded, 'Profile', 3),
+    ];
+
+    return Drawer(
+      backgroundColor: t.surface,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+              child: Row(
+                children: [
+                  _SidebarLogo(t: t),
+                  const Spacer(),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: t.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(color: t.border, height: 1),
+
+            // Search
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: t.surface2,
+                  border: Border.all(color: t.border2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.search, size: 14, color: t.textMuted),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: TextField(
+                        onChanged: (q) => context.read<DashboardBloc>().add(
+                          DashboardSearchChanged(q),
+                        ),
+                        style: TextStyle(fontSize: 13, color: t.text),
+                        decoration: InputDecoration(
+                          hintText: 'Search resources...',
+                          hintStyle: TextStyle(
+                            fontSize: 13,
+                            color: t.textMuted,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Nav items
+            ...items.map((item) {
+              final isActive = currentIndex == item.$3;
+              return _SidebarItem(
+                icon: item.$1,
+                label: item.$2,
+                isActive: isActive,
+                t: t,
+                onTap: () => onNavTap(item.$3),
+              );
+            }),
+
+            const Spacer(),
+            Divider(color: t.border, height: 1),
+
+            // Avatar + name row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: t.border),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'LM',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lhorenz Magtibay',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: t.text,
+                          ),
+                        ),
+                        Text(
+                          'lhorenz@email.com',
+                          style: TextStyle(fontSize: 11, color: t.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Log out
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+              child: _SidebarItem(
+                icon: Icons.logout_rounded,
+                label: 'Log out',
+                isActive: false,
+                t: t,
+                onTap: () {
+                  Navigator.pop(context);
+                  // TODO: dispatch logout event
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );

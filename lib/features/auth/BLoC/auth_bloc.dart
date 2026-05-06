@@ -34,12 +34,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Simulate network delay — replace this with real Firebase/API call later
     await Future.delayed(const Duration(seconds: 1));
 
-    // Basic validation
     if (event.email.isEmpty || event.password.isEmpty) {
       emit(const AuthFailure(error: 'Please fill in all fields.'));
     } else {
-      // TODO: Replace with real authentication (Firebase, REST API, etc.)
-      emit(const AuthSuccess(message: 'Login successful!'));
+      final isAdmin = event.email == 'admin@studyhub.com';
+      emit(
+        AuthSuccess(
+          message: 'Login successful!',
+          role: isAdmin ? 'admin' : 'student',
+        ),
+      );
     }
   }
 

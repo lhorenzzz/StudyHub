@@ -26,10 +26,11 @@ class AuthLoading extends AuthState {}
 // Emitted when login or register succeeds
 class AuthSuccess extends AuthState {
   final String message;
-  const AuthSuccess({required this.message});
+  final String role; // 'student' or 'admin'
+  const AuthSuccess({required this.message, this.role = 'student'});
 
   @override
-  List<Object> get props => [message];
+  List<Object> get props => [message, role];
 }
 
 // Emitted when login or register fails (e.g. empty fields, wrong password)

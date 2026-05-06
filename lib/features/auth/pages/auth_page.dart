@@ -103,7 +103,11 @@ class _AuthPageState extends State<AuthPage>
                   ),
                 ),
               );
-              context.go('/dashboard');
+              if (state.role == 'admin') {
+                context.go('/admin');
+              } else {
+                context.go('/dashboard');
+              }
             }
           },
           child: isDesktop
