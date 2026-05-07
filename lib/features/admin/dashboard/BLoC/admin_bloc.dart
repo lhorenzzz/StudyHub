@@ -100,7 +100,15 @@ class AdminCategoryDeleteRequested extends AdminEvent {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB ENUM
 // ─────────────────────────────────────────────────────────────────────────────
-enum AdminTab { overview, resources, users, categories }
+// admin_bloc.dart
+enum AdminTab {
+  overview,
+  globalResources,
+  userUploads,
+  users,
+  myResources,
+  profile,
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STATES
@@ -114,7 +122,7 @@ class AdminLoaded extends AdminState {
   final AdminTab activeTab;
 
   // Stats
-  final int totalResources;
+  final int totalGlobalResources;
   final int totalUsers;
   final int totalCategories;
 
@@ -141,7 +149,7 @@ class AdminLoaded extends AdminState {
   AdminLoaded({
     required this.isDarkMode,
     required this.activeTab,
-    required this.totalResources,
+    required this.totalGlobalResources,
     required this.totalUsers,
     required this.totalCategories,
     required this.resources,
@@ -161,7 +169,7 @@ class AdminLoaded extends AdminState {
   AdminLoaded copyWith({
     bool? isDarkMode,
     AdminTab? activeTab,
-    int? totalResources,
+    int? totalGlobalResources,
     int? totalUsers,
     int? totalCategories,
     List<ResourceModel>? resources,
@@ -181,7 +189,7 @@ class AdminLoaded extends AdminState {
     return AdminLoaded(
       isDarkMode: isDarkMode ?? this.isDarkMode,
       activeTab: activeTab ?? this.activeTab,
-      totalResources: totalResources ?? this.totalResources,
+      totalGlobalResources: totalGlobalResources ?? this.totalGlobalResources,
       totalUsers: totalUsers ?? this.totalUsers,
       totalCategories: totalCategories ?? this.totalCategories,
       resources: resources ?? this.resources,
@@ -250,7 +258,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         AdminLoaded(
           isDarkMode: true,
           activeTab: AdminTab.overview,
-          totalResources: stats.totalResources,
+          totalGlobalResources: stats.totalResources,
           totalUsers: stats.totalUsers,
           totalCategories: stats.totalCategories,
           resources: resources,
@@ -362,7 +370,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
             categoryId: s.resourceCategoryFilter,
             difficulty: s.resourceDifficultyFilter,
           ),
-          totalResources: s.totalResources - 1,
+          totalGlobalResources: s.totalGlobalResources - 1,
           successMessage: 'Resource deleted.',
         ),
       );
@@ -401,7 +409,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           isActionLoading: false,
           resources: updated,
           filteredResources: updated,
-          totalResources: s.totalResources + 1,
+          totalGlobalResources: s.totalGlobalResources + 1,
           successMessage: '"${e.title}" uploaded successfully.',
         ),
       );

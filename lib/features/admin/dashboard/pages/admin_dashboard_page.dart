@@ -156,9 +156,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         index: state.activeTab.index,
                         pages: [
                           _OverviewTab(state: state, t: t),
-                          _ResourcesTab(state: state, t: t),
+                          _GlobalResourcesTab(state: state, t: t),
+                          _UserUploadsTab(state: state, t: t),
                           _UsersTab(state: state, t: t),
-                          _CategoriesTab(state: state, t: t),
+                          _MyResourcesView(state: state, t: t),
+                          _ProfileTab(t: t),
                         ],
                       ),
                     ),
@@ -200,13 +202,14 @@ class _Navbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 54,
+      height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 28),
       decoration: BoxDecoration(
         color: t.surface,
         border: Border(bottom: BorderSide(color: t.border)),
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
           // Logo
           Row(
@@ -296,6 +299,7 @@ class _Navbar extends StatelessWidget {
 }
 
 // ─── TAB BAR ──────────────────────────────────────────────────────────────────
+// UPDATED: now has 5 tabs — overview, globalResources, userUploads, users, categories
 class _TabBar extends StatelessWidget {
   final AdminTab activeTab;
   final _T t;
@@ -305,9 +309,11 @@ class _TabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tabs = [
       (AdminTab.overview, 'Overview'),
-      (AdminTab.resources, 'Resources'),
+      (AdminTab.globalResources, 'Global Resources'),
+      (AdminTab.userUploads, 'User Uploads'),
       (AdminTab.users, 'Users'),
-      (AdminTab.categories, 'Categories'),
+      (AdminTab.myResources, 'My Resources'),
+      (AdminTab.profile, 'Profile'),
     ];
 
     return Container(
@@ -317,16 +323,19 @@ class _TabBar extends StatelessWidget {
         color: t.surface,
         border: Border(bottom: BorderSide(color: t.border)),
       ),
-      child: Row(
-        children: tabs.map((tab) {
-          final isActive = activeTab == tab.$1;
-          return _TabItem(
-            label: tab.$2,
-            isActive: isActive,
-            t: t,
-            onTap: () => context.read<AdminBloc>().add(AdminTabChanged(tab.$1)),
-          );
-        }).toList(),
+      child: SingleChildScrollView(
+        child: Row(
+          children: tabs.map((tab) {
+            final isActive = activeTab == tab.$1;
+            return _TabItem(
+              label: tab.$2,
+              isActive: isActive,
+              t: t,
+              onTap: () =>
+                  context.read<AdminBloc>().add(AdminTabChanged(tab.$1)),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -400,7 +409,6 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 5 most recently uploaded
     final recent = [...state.resources]
       ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
     final recentSlice = recent.take(5).toList();
@@ -437,8 +445,8 @@ class _OverviewTab extends StatelessWidget {
                 children: [
                   _StatCard(
                     icon: Icons.library_books_outlined,
-                    label: 'Total Resources',
-                    value: state.totalResources,
+                    label: 'Total GlobalResources',
+                    value: state.totalGlobalResources,
                     width: w,
                     t: t,
                   ),
@@ -463,23 +471,48 @@ class _OverviewTab extends StatelessWidget {
 
           const SizedBox(height: 32),
 
-          // Recently uploaded
-          _SectionHeader(title: 'Recently Uploaded', t: t),
+          _SectionHeader(title: 'Top Uploaders', t: t),
+          const SizedBox(height: 4),
+          Text(
+            'Click a user to browse their uploaded files by category.',
+            style: TextStyle(fontSize: 12, color: t.textMuted),
+          ),
           const SizedBox(height: 12),
-          if (recentSlice.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Text(
-                  'No resources yet.',
-                  style: TextStyle(color: t.textSub, fontSize: 13),
-                ),
-              ),
-            )
-          else
-            ...recentSlice
-                .map((r) => _RecentResourceRow(resource: r, t: t))
-                .toList(),
+
+          Builder(
+            builder: (context) {
+              final Map<String, List<ResourceModel>> byUser = {};
+              for (final r in state.resources) {
+                byUser.putIfAbsent(r.uploadedBy, () => []).add(r);
+              }
+              final sorted = byUser.entries.toList()
+                ..sort((a, b) => b.value.length.compareTo(a.value.length));
+              final maxCount = sorted.isEmpty ? 1 : sorted.first.value.length;
+
+              if (sorted.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Text(
+                      'No uploads yet.',
+                      style: TextStyle(color: t.textSub, fontSize: 13),
+                    ),
+                  ),
+                );
+              }
+
+              return Column(
+                children: sorted.map((entry) {
+                  return _UploaderRow(
+                    uploadedBy: entry.key,
+                    resources: entry.value,
+                    maxCount: maxCount,
+                    t: t,
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -619,25 +652,748 @@ class _RecentResourceRowState extends State<_RecentResourceRow> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RESOURCES TAB
-// ─────────────────────────────────────────────────────────────────────────────
-class _ResourcesTab extends StatefulWidget {
-  final AdminLoaded state;
+class _UploaderRow extends StatefulWidget {
+  final String uploadedBy;
+  final List<ResourceModel> resources;
+  final int maxCount;
   final _T t;
-  const _ResourcesTab({required this.state, required this.t});
+  const _UploaderRow({
+    required this.uploadedBy,
+    required this.resources,
+    required this.maxCount,
+    required this.t,
+  });
 
   @override
-  State<_ResourcesTab> createState() => _ResourcesTabState();
+  State<_UploaderRow> createState() => _UploaderRowState();
 }
 
-class _ResourcesTabState extends State<_ResourcesTab> {
-  bool _showUpload = false;
+class _UploaderRowState extends State<_UploaderRow> {
+  bool _expanded = false;
+  final Map<String, bool> _showAll = {};
+
+  String get _initials {
+    final parts = widget.uploadedBy.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return widget.uploadedBy.isNotEmpty
+        ? widget.uploadedBy[0].toUpperCase()
+        : '?';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.state;
     final t = widget.t;
+    final count = widget.resources.length;
+    final barWidth = count / widget.maxCount;
+
+    final Map<String, List<ResourceModel>> byCategory = {};
+    for (final r in widget.resources) {
+      byCategory.putIfAbsent(r.categoryName, () => []).add(r);
+    }
+
+    return Column(
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _expanded ? t.surface2 : t.surface,
+                border: Border.all(color: _expanded ? t.border2 : t.border),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: t.border2),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _initials,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    widget.uploadedBy,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: t.text,
+                    ),
+                  ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '$count',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
+                      Text(
+                        'uploads',
+                        style: TextStyle(fontSize: 11, color: t.textMuted),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 80,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: barWidth,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: t.textMuted,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  AnimatedRotation(
+                    duration: const Duration(milliseconds: 200),
+                    turns: _expanded ? 0.25 : 0,
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: t.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        if (_expanded)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: t.surface,
+              border: Border.all(color: t.border),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: byCategory.entries.map((catEntry) {
+                final catName = catEntry.key;
+                final catResources = catEntry.value;
+                final showAll = _showAll[catName] ?? false;
+                const limit = 6;
+                final visible = showAll
+                    ? catResources
+                    : catResources.take(limit).toList();
+                final remaining = catResources.length - limit;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            '${catResources.first.categoryName.toUpperCase()} · ${catResources.length} FILES',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.6,
+                              color: t.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          ...visible.map((r) => _FileChip(resource: r, t: t)),
+                          if (!showAll && remaining > 0)
+                            MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    setState(() => _showAll[catName] = true),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: t.border2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '+ $remaining more',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: t.textSub,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FileChip extends StatefulWidget {
+  final ResourceModel resource;
+  final _T t;
+  const _FileChip({required this.resource, required this.t});
+
+  @override
+  State<_FileChip> createState() => _FileChipState();
+}
+
+class _FileChipState extends State<_FileChip> {
+  bool _hover = false;
+
+  (Color, Color) get _typeColors {
+    switch (widget.resource.type) {
+      case ResourceType.pdf:
+        return (const Color(0xFFFCEBEB), const Color(0xFFA32D2D));
+      case ResourceType.word:
+        return (const Color(0xFFE6F1FB), const Color(0xFF185FA5));
+      case ResourceType.ppt:
+        return (const Color(0xFFFAEEDA), const Color(0xFF854F0B));
+      case ResourceType.excel:
+        return (const Color(0xFFE6F7EE), const Color(0xFF1A6E3C));
+      case ResourceType.article:
+        return (const Color(0xFFEAF3DE), const Color(0xFF3B6D11));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final r = widget.resource;
+    final (bgColor, fgColor) = _typeColors;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: _hover ? t.surface2 : t.surface,
+          border: Border.all(color: _hover ? t.border2 : t.border),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                r.typeLabel,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: fgColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(r.title, style: TextStyle(fontSize: 12, color: t.text)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLOBAL RESOURCES TAB — NEW
+// Breadcrumb helper
+// ─────────────────────────────────────────────────────────────────────────────
+class _Breadcrumb extends StatelessWidget {
+  final String? categoryName;
+  final _T t;
+  final VoidCallback onBack;
+  const _Breadcrumb({
+    required this.categoryName,
+    required this.t,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: onBack,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: t.surface2,
+                border: Border.all(color: t.border2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.arrow_back, size: 14, color: t.textMuted),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Back',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: t.text,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Icon(Icons.folder_outlined, size: 15, color: t.textMuted),
+        const SizedBox(width: 6),
+        Text(
+          categoryName ?? '',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: t.text,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// File type filter chips
+class _TypeFilterChips extends StatelessWidget {
+  final String selected;
+  final _T t;
+  final ValueChanged<String> onChanged;
+  const _TypeFilterChips({
+    required this.selected,
+    required this.t,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final types = [
+      ('', 'All'),
+      ('pdf', 'PDF'),
+      ('word', 'Word'),
+      ('ppt', 'PPT'),
+      ('excel', 'Excel'),
+      ('article', 'Article'),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: types.map((type) {
+          final isActive = selected == type.$1;
+          return Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: _Chip(
+              label: type.$2,
+              selected: isActive,
+              t: t,
+              onTap: () => onChanged(type.$1),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// Compact file card (grid layout) used by both GlobalResources and UserUploads
+class _CompactFileCard extends StatefulWidget {
+  final ResourceModel resource;
+  final double width;
+  final _T t;
+  final VoidCallback onView;
+  final VoidCallback onDelete;
+  const _CompactFileCard({
+    required this.resource,
+    required this.width,
+    required this.t,
+    required this.onView,
+    required this.onDelete,
+  });
+
+  @override
+  State<_CompactFileCard> createState() => _CompactFileCardState();
+}
+
+class _CompactFileCardState extends State<_CompactFileCard> {
+  bool _hover = false;
+
+  (Color, Color) get _typeColors {
+    switch (widget.resource.type) {
+      case ResourceType.pdf:
+        return (const Color(0xFF3A1010), const Color(0xFFFF6B6B));
+      case ResourceType.word:
+        return (const Color(0xFF0F2040), const Color(0xFF60A5FA));
+      case ResourceType.ppt:
+        return (const Color(0xFF3A1F05), const Color(0xFFFB923C));
+      case ResourceType.excel:
+        return (const Color(0xFF0A2A18), const Color(0xFF34D399));
+      default: // article
+        return (const Color(0xFF1A2A0A), const Color(0xFFA3E635));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.resource;
+    final t = widget.t;
+    final (badgeBg, badgeFg) = _typeColors;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onView,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: widget.width,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _hover
+                ? (t.isDark ? const Color(0xFF161616) : const Color(0xFFF0F0F0))
+                : t.surface,
+            border: Border.all(color: _hover ? t.border2 : t.border),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: badgeBg,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      r.typeLabel.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: badgeFg,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: widget.onDelete,
+                      child: Icon(
+                        Icons.delete_outline,
+                        size: 14,
+                        color: t.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                r.title,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: t.text,
+                  height: 1.3,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: t.border2),
+                    ),
+                    child: Center(
+                      child: Text(
+                        r.uploadedBy.isNotEmpty
+                            ? r.uploadedBy[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w600,
+                          color: t.textSub,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      r.uploadedBy,
+                      style: TextStyle(fontSize: 10, color: t.textMuted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${r.uploadedAt.day}/${r.uploadedAt.month}',
+                    style: TextStyle(fontSize: 10, color: t.textMuted),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Top-level helper so _AddCategoryMiniCard can call it
+void _showAddCategoryModal(BuildContext context, _T t) {
+  final nameCtrl = TextEditingController();
+  final descCtrl = TextEditingController();
+  String selectedEmoji = '📁';
+  final emojis = [
+    '📁',
+    '💻',
+    '🧪',
+    '🍳',
+    '📚',
+    '🎨',
+    '🔧',
+    '🌐',
+    '🧠',
+    '📐',
+    '🎵',
+    '⚽',
+  ];
+
+  showDialog(
+    context: context,
+    barrierColor: Colors.black.withOpacity(0.6),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => Dialog(
+        backgroundColor: t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: t.border),
+        ),
+        child: Container(
+          width: 400,
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Add Category',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: t.text,
+                    ),
+                  ),
+                  const Spacer(),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Icon(Icons.close, size: 18, color: t.textMuted),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Icon',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: t.textMuted,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: emojis.map((e) {
+                  final isSel = selectedEmoji == e;
+                  return MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => setS(() => selectedEmoji = e),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isSel
+                              ? (t.isDark ? Colors.white : Colors.black)
+                              : t.surface2,
+                          border: Border.all(
+                            color: isSel
+                                ? (t.isDark ? Colors.white : Colors.black)
+                                : t.border2,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(e, style: const TextStyle(fontSize: 18)),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Category Name',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: t.textMuted,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _ModalTextField(ctrl: nameCtrl, hint: 'e.g. Mathematics', t: t),
+              const SizedBox(height: 16),
+              Text(
+                'Description',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: t.textMuted,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _ModalTextField(
+                ctrl: descCtrl,
+                hint: 'Brief description...',
+                t: t,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: _ModalBtn(
+                  label: 'Add Category',
+                  primary: true,
+                  t: t,
+                  onTap: () {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) return;
+                    context.read<AdminBloc>().add(
+                      AdminCategoryAddRequested(
+                        name: name,
+                        description: descCtrl.text.trim(),
+                        emoji: selectedEmoji,
+                      ),
+                    );
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// Global Resources Tab — category grid → drill into files
+class _GlobalResourcesTab extends StatefulWidget {
+  final AdminLoaded state;
+  final _T t;
+  const _GlobalResourcesTab({required this.state, required this.t});
+
+  @override
+  State<_GlobalResourcesTab> createState() => _GlobalResourcesTabState();
+}
+
+class _GlobalResourcesTabState extends State<_GlobalResourcesTab> {
+  String? _selectedCategoryId;
+  String? _selectedCategoryName;
+  String _typeFilter = '';
+  bool _showUpload = false;
+
+  List<ResourceModel> _getFilesForCategory(String categoryId) {
+    return widget.state.resources
+        .where((r) => r.categoryId == categoryId)
+        .toList();
+  }
+
+  List<ResourceModel> get _filteredFiles {
+    final files = _getFilesForCategory(_selectedCategoryId ?? '');
+    if (_typeFilter.isEmpty) return files;
+    return files.where((r) => r.type == _typeFilter).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final state = widget.state;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(28),
@@ -647,35 +1403,50 @@ class _ResourcesTabState extends State<_ResourcesTab> {
           // Header
           Row(
             children: [
-              Text(
-                'Resources',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.6,
-                  color: t.text,
+              if (_selectedCategoryId != null)
+                _Breadcrumb(
+                  categoryName: _selectedCategoryName,
+                  t: t,
+                  onBack: () => setState(() {
+                    _selectedCategoryId = null;
+                    _selectedCategoryName = null;
+                    _typeFilter = '';
+                    _showUpload = false;
+                  }),
+                )
+              else
+                Text(
+                  'Global Resources',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.6,
+                    color: t.text,
+                  ),
                 ),
-              ),
               const Spacer(),
-              _HoverBtn(
-                label: _showUpload ? 'Cancel' : '+ Upload',
-                t: t,
-                primary: !_showUpload,
-                onTap: () => setState(() => _showUpload = !_showUpload),
-              ),
+              if (_selectedCategoryId != null)
+                _HoverBtn(
+                  label: _showUpload ? 'Cancel' : '↑  Upload to this category',
+                  t: t,
+                  primary: !_showUpload,
+                  onTap: () => setState(() => _showUpload = !_showUpload),
+                ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            'Manage all uploaded resources.',
-            style: TextStyle(fontSize: 13, color: t.textSub),
-          ),
+          if (_selectedCategoryId == null)
+            Text(
+              'Browse and manage resources by category.',
+              style: TextStyle(fontSize: 13, color: t.textSub),
+            ),
           const SizedBox(height: 24),
 
-          // Upload form (inline, collapsible)
-          if (_showUpload) ...[
+          // Inline upload form (only inside a category)
+          if (_showUpload && _selectedCategoryId != null) ...[
             _AdminUploadForm(
               t: t,
+              preselectedCategoryId: _selectedCategoryId,
               categories: state.categories,
               isLoading: state.isActionLoading,
               onSubmit: (data) {
@@ -693,81 +1464,113 @@ class _ResourcesTabState extends State<_ResourcesTab> {
                 setState(() => _showUpload = false);
               },
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
           ],
 
-          // Search + filter row
-          Row(
-            children: [
-              Expanded(
-                child: _SearchField(
-                  hint: 'Search resources...',
-                  t: t,
-                  onChanged: (q) => context.read<AdminBloc>().add(
-                    AdminResourceSearchChanged(q),
+          // LEVEL 1: Category grid
+          if (_selectedCategoryId == null) ...[
+            LayoutBuilder(
+              builder: (_, c) {
+                final cols = c.maxWidth > 900
+                    ? 4
+                    : c.maxWidth > 600
+                    ? 3
+                    : 2;
+                final w = (c.maxWidth - (10.0 * (cols - 1))) / cols;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    ...state.categories.asMap().entries.map((e) {
+                      final cat = e.value;
+                      final count = state.resources
+                          .where((r) => r.categoryId == cat.id)
+                          .length;
+                      return _GlobalCategoryCard(
+                        category: cat,
+                        resourceCount: count,
+                        colorIndex: e.key,
+                        width: w,
+                        t: t,
+                        onTap: () => setState(() {
+                          _selectedCategoryId = cat.id;
+                          _selectedCategoryName = cat.name;
+                          _typeFilter = '';
+                        }),
+                      );
+                    }),
+                    _AddCategoryMiniCard(width: w, t: t),
+                  ],
+                );
+              },
+            ),
+          ],
+
+          // LEVEL 2: Files in selected category
+          if (_selectedCategoryId != null) ...[
+            _TypeFilterChips(
+              selected: _typeFilter,
+              t: t,
+              onChanged: (v) => setState(() => _typeFilter = v),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '${_filteredFiles.length} files',
+              style: TextStyle(fontSize: 12, color: t.textMuted),
+            ),
+            const SizedBox(height: 12),
+            if (_filteredFiles.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.folder_open_outlined,
+                        size: 36,
+                        color: t.textMuted,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No files in this category yet.',
+                        style: TextStyle(color: t.textSub, fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Use "Upload to this category" above.',
+                        style: TextStyle(color: t.textMuted, fontSize: 12),
+                      ),
+                    ],
                   ),
                 ),
+              )
+            else
+              LayoutBuilder(
+                builder: (_, c) {
+                  final cols = c.maxWidth > 800
+                      ? 3
+                      : c.maxWidth > 500
+                      ? 2
+                      : 1;
+                  final w = (c.maxWidth - (10.0 * (cols - 1))) / cols;
+                  return Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: _filteredFiles
+                        .map(
+                          (r) => _CompactFileCard(
+                            resource: r,
+                            width: w,
+                            t: t,
+                            onView: () => _showViewModal(context, r, t),
+                            onDelete: () => _confirmDelete(context, r, t),
+                          ),
+                        )
+                        .toList(),
+                  );
+                },
               ),
-              const SizedBox(width: 10),
-              _FilterDropdown(
-                hint: 'All categories',
-                value: state.resourceCategoryFilter.isEmpty
-                    ? null
-                    : state.resourceCategoryFilter,
-                items: state.categories.map((c) => (c.id, c.name)).toList(),
-                t: t,
-                onChanged: (v) => context.read<AdminBloc>().add(
-                  AdminResourceFilterChanged(categoryId: v ?? ''),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _FilterDropdown(
-                hint: 'All levels',
-                value: state.resourceDifficultyFilter.isEmpty
-                    ? null
-                    : state.resourceDifficultyFilter,
-                items: const [
-                  ('beginner', 'Beginner'),
-                  ('intermediate', 'Intermediate'),
-                ],
-                t: t,
-                onChanged: (v) => context.read<AdminBloc>().add(
-                  AdminResourceFilterChanged(difficulty: v ?? ''),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Count
-          Text(
-            '${state.filteredResources.length} resources',
-            style: TextStyle(fontSize: 12, color: t.textMuted),
-          ),
-          const SizedBox(height: 12),
-
-          // List
-          if (state.filteredResources.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Text(
-                  'No resources found.',
-                  style: TextStyle(color: t.textSub, fontSize: 13),
-                ),
-              ),
-            )
-          else
-            ...state.filteredResources
-                .map(
-                  (r) => _AdminResourceRow(
-                    resource: r,
-                    t: t,
-                    onDelete: () => _confirmDelete(context, r, t),
-                    onView: () => _showViewModal(context, r, t),
-                  ),
-                )
-                .toList(),
+          ],
         ],
       ),
     );
@@ -778,8 +1581,7 @@ class _ResourcesTabState extends State<_ResourcesTab> {
       context: context,
       t: t,
       title: 'Delete Resource',
-      body:
-          'Are you sure you want to delete "${r.title}"? This cannot be undone.',
+      body: 'Delete "${r.title}"? This cannot be undone.',
       confirmLabel: 'Delete',
       isDestructive: true,
       onConfirm: () =>
@@ -869,103 +1671,457 @@ class _ResourcesTabState extends State<_ResourcesTab> {
   }
 }
 
-class _AdminResourceRow extends StatefulWidget {
-  final ResourceModel resource;
+// Global category card — clickable, drills into files
+class _GlobalCategoryCard extends StatefulWidget {
+  final CategoryModel category;
+  final int resourceCount;
+  final int colorIndex;
+  final double width;
   final _T t;
-  final VoidCallback onDelete;
-  final VoidCallback onView;
-  const _AdminResourceRow({
-    required this.resource,
+  final VoidCallback onTap;
+  const _GlobalCategoryCard({
+    required this.category,
+    required this.resourceCount,
+    required this.colorIndex,
+    required this.width,
     required this.t,
-    required this.onDelete,
-    required this.onView,
+    required this.onTap,
   });
 
   @override
-  State<_AdminResourceRow> createState() => _AdminResourceRowState();
+  State<_GlobalCategoryCard> createState() => _GlobalCategoryCardState();
 }
 
-class _AdminResourceRowState extends State<_AdminResourceRow> {
+class _GlobalCategoryCardState extends State<_GlobalCategoryCard> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final r = widget.resource;
+    final c = widget.category;
     final t = widget.t;
+    final cc = _cc(widget.colorIndex, t.isDark);
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: widget.onView,
+        onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(14),
+          duration: const Duration(milliseconds: 200),
+          width: widget.width,
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _hover
-                ? (t.isDark ? const Color(0xFF161616) : const Color(0xFFF0F0F0))
-                : t.surface,
-            border: Border.all(color: _hover ? t.border2 : t.border),
+            color: _hover ? cc.bg : t.surface,
+            border: Border.all(
+              color: _hover ? cc.border : t.border,
+              width: _hover ? 2 : 1,
+            ),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Row(
+
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
                   color: t.surface2,
-                  border: Border.all(color: t.border2),
-                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: t.border),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
                   child: Text(
-                    r.typeEmoji,
-                    style: const TextStyle(fontSize: 16),
+                    c.emoji.isNotEmpty ? c.emoji : '📁',
+                    style: const TextStyle(fontSize: 18),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      r.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: t.text,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${r.categoryName} · ${r.difficultyLabel} · ${r.typeLabel}',
-                      style: TextStyle(fontSize: 12, color: t.textSub),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
+              const SizedBox(height: 10),
               Text(
-                '${r.uploadedAt.day}/${r.uploadedAt.month}/${r.uploadedAt.year}',
-                style: TextStyle(fontSize: 11, color: t.textMuted),
-              ),
-              const SizedBox(width: 16),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: widget.onDelete,
-                  child: Icon(
-                    Icons.delete_outline,
-                    size: 16,
-                    color: t.textMuted,
-                  ),
+                c.name.isNotEmpty ? c.name : 'Unnamed',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: t.text,
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                c.description,
+                style: TextStyle(fontSize: 11, color: t.textSub, height: 1.4),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    '${widget.resourceCount} files',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: t.textSub,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(Icons.arrow_forward, size: 13, color: t.textMuted),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Add category mini card shown in the global resources grid
+class _AddCategoryMiniCard extends StatefulWidget {
+  final double width;
+  final _T t;
+  const _AddCategoryMiniCard({required this.width, required this.t});
+
+  @override
+  State<_AddCategoryMiniCard> createState() => _AddCategoryMiniCardState();
+}
+
+class _AddCategoryMiniCardState extends State<_AddCategoryMiniCard> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: () => _showAddCategoryModal(context, widget.t),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: widget.width,
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          decoration: BoxDecoration(
+            color: _hover ? widget.t.hover : Colors.transparent,
+            border: Border.all(
+              color: _hover ? widget.t.border2 : widget.t.border,
+            ),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_rounded, size: 22, color: widget.t.textMuted),
+              const SizedBox(height: 6),
+              Text(
+                'Add Category',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: widget.t.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER UPLOADS TAB — NEW
+// ─────────────────────────────────────────────────────────────────────────────
+class _UserUploadsTab extends StatefulWidget {
+  final AdminLoaded state;
+  final _T t;
+  const _UserUploadsTab({required this.state, required this.t});
+
+  @override
+  State<_UserUploadsTab> createState() => _UserUploadsTabState();
+}
+
+class _UserUploadsTabState extends State<_UserUploadsTab> {
+  static const _pageSize = 20;
+  int _page = 0;
+
+  String _search = '';
+  String _categoryFilter = '';
+  String _typeFilter = '';
+
+  List<ResourceModel> get _allUploads => widget.state.resources;
+
+  List<ResourceModel> get _filtered {
+    return _allUploads.where((r) {
+      final ms =
+          _search.isEmpty ||
+          r.title.toLowerCase().contains(_search.toLowerCase()) ||
+          r.uploadedBy.toLowerCase().contains(_search.toLowerCase());
+      final mc = _categoryFilter.isEmpty || r.categoryId == _categoryFilter;
+      final mt = _typeFilter.isEmpty || r.type == _typeFilter;
+      return ms && mc && mt;
+    }).toList();
+  }
+
+  List<ResourceModel> get _paginated {
+    final start = _page * _pageSize;
+    final end = (start + _pageSize).clamp(0, _filtered.length);
+    if (start >= _filtered.length) return [];
+    return _filtered.sublist(start, end);
+  }
+
+  int get _totalPages => (_filtered.length / _pageSize).ceil();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    final state = widget.state;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'User Uploads',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.6,
+              color: t.text,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'All files uploaded by students. You can view or delete.',
+            style: TextStyle(fontSize: 13, color: t.textSub),
+          ),
+          const SizedBox(height: 24),
+
+          // Search + filters
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              SizedBox(
+                width: 260,
+                child: _SearchField(
+                  hint: 'Search by title or uploader...',
+                  t: t,
+                  onChanged: (q) => setState(() {
+                    _search = q;
+                    _page = 0;
+                  }),
+                ),
+              ),
+              _FilterDropdown(
+                hint: 'All categories',
+                value: _categoryFilter.isEmpty ? null : _categoryFilter,
+                items: state.categories.map((c) => (c.id, c.name)).toList(),
+                t: t,
+                onChanged: (v) => setState(() {
+                  _categoryFilter = v ?? '';
+                  _page = 0;
+                }),
+              ),
+              _FilterDropdown(
+                hint: 'All types',
+                value: _typeFilter.isEmpty ? null : _typeFilter,
+                items: const [
+                  ('pdf', 'PDF'),
+                  ('word', 'Word'),
+                  ('ppt', 'PPT'),
+                  ('excel', 'Excel'),
+                  ('article', 'Article'),
+                ],
+                t: t,
+                onChanged: (v) => setState(() {
+                  _typeFilter = v ?? '';
+                  _page = 0;
+                }),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Text(
+                '${_filtered.length} files',
+                style: TextStyle(fontSize: 12, color: t.textMuted),
+              ),
+              if (_totalPages > 1) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '· Page ${_page + 1} of $_totalPages',
+                  style: TextStyle(fontSize: 12, color: t.textMuted),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (_paginated.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 40),
+                child: Text(
+                  _filtered.isEmpty && _search.isNotEmpty
+                      ? 'No files match your search.'
+                      : 'No user uploads yet.',
+                  style: TextStyle(color: t.textSub, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (_, c) {
+                final cols = c.maxWidth > 800
+                    ? 3
+                    : c.maxWidth > 500
+                    ? 2
+                    : 1;
+                final w = (c.maxWidth - (10.0 * (cols - 1))) / cols;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: _paginated
+                      .map(
+                        (r) => _CompactFileCard(
+                          resource: r,
+                          width: w,
+                          t: t,
+                          onView: () => _showViewModal(context, r, t),
+                          onDelete: () => _confirmDelete(context, r, t),
+                        ),
+                      )
+                      .toList(),
+                );
+              },
+            ),
+
+          // Pagination controls
+          if (_totalPages > 1) ...[
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _HoverBtn(
+                  label: '← Prev',
+                  t: t,
+                  primary: false,
+                  onTap: _page > 0 ? () => setState(() => _page--) : () {},
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '${_page + 1} / $_totalPages',
+                  style: TextStyle(fontSize: 13, color: t.textSub),
+                ),
+                const SizedBox(width: 12),
+                _HoverBtn(
+                  label: 'Next →',
+                  t: t,
+                  primary: false,
+                  onTap: _page < _totalPages - 1
+                      ? () => setState(() => _page++)
+                      : () {},
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, ResourceModel r, _T t) {
+    _showConfirmDialog(
+      context: context,
+      t: t,
+      title: 'Delete Resource',
+      body: 'Delete "${r.title}"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      isDestructive: true,
+      onConfirm: () =>
+          context.read<AdminBloc>().add(AdminResourceDeleteRequested(r.id)),
+    );
+  }
+
+  void _showViewModal(BuildContext context, ResourceModel r, _T t) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (_) => Dialog(
+        backgroundColor: t.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: t.border),
+        ),
+        child: Container(
+          width: 440,
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      border: Border.all(color: t.border2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: Text(
+                        r.typeEmoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          r.title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
+                          ),
+                        ),
+                        Text(
+                          '${r.categoryName} · ${r.difficultyLabel}',
+                          style: TextStyle(fontSize: 12, color: t.textSub),
+                        ),
+                      ],
+                    ),
+                  ),
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Icon(Icons.close, size: 18, color: t.textMuted),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _ModalRow(label: 'File Type', value: r.typeLabel, t: t),
+              _ModalRow(label: 'Category', value: r.categoryName, t: t),
+              _ModalRow(label: 'Difficulty', value: r.difficultyLabel, t: t),
+              _ModalRow(
+                label: 'Uploaded',
+                value:
+                    '${r.uploadedAt.day}/${r.uploadedAt.month}/${r.uploadedAt.year}',
+                t: t,
+              ),
+              _ModalRow(label: 'Uploaded by', value: r.uploadedBy, t: t),
             ],
           ),
         ),
@@ -1005,7 +2161,6 @@ class _UsersTab extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Search
           _SearchField(
             hint: 'Search by name or email...',
             t: t,
@@ -1098,7 +2253,6 @@ class _UserRowState extends State<_UserRow> {
         ),
         child: Row(
           children: [
-            // Avatar
             Container(
               width: 36,
               height: 36,
@@ -1138,7 +2292,6 @@ class _UserRowState extends State<_UserRow> {
                 ],
               ),
             ),
-            // Role badge
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -1162,7 +2315,6 @@ class _UserRowState extends State<_UserRow> {
               style: TextStyle(fontSize: 11, color: t.textMuted),
             ),
             const SizedBox(width: 16),
-            // Don't allow deleting self (admin)
             if (u.role != 'admin')
               MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -1184,16 +2336,20 @@ class _UserRowState extends State<_UserRow> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CATEGORIES TAB
-// ─────────────────────────────────────────────────────────────────────────────
-class _CategoriesTab extends StatelessWidget {
+// ─── ADMIN MY RESOURCES TAB ───────────────────────────────────────────────────
+class _MyResourcesView extends StatelessWidget {
   final AdminLoaded state;
   final _T t;
-  const _CategoriesTab({required this.state, required this.t});
+  const _MyResourcesView({required this.state, required this.t});
 
   @override
   Widget build(BuildContext context) {
+    // 🗑️ DUMMY: filter by 'admin' — delete when Firebase connected
+    // 🔥 FIREBASE: query where uploaded_by == current_user_id
+    final myResources = state.resources
+        .where((r) => r.uploadedBy == 'admin')
+        .toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(28),
       child: Column(
@@ -1202,7 +2358,7 @@ class _CategoriesTab extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Categories',
+                'My Resources',
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -1211,53 +2367,76 @@ class _CategoriesTab extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              _HoverBtn(
-                label: '+ Add Category',
-                t: t,
-                onTap: () => _showCategoryModal(context, t),
+              Text(
+                '${myResources.length} uploaded',
+                style: TextStyle(fontSize: 13, color: t.textMuted),
               ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            'Manage resource categories.',
+            'Resources you have uploaded.',
             style: TextStyle(fontSize: 13, color: t.textSub),
           ),
-          const SizedBox(height: 24),
-
-          if (state.categories.isEmpty)
+          const SizedBox(height: 28),
+          if (myResources.isEmpty)
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 40),
-                child: Text(
-                  'No categories yet.',
-                  style: TextStyle(color: t.textSub, fontSize: 13),
+                padding: const EdgeInsets.symmetric(vertical: 80),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.upload_file_outlined,
+                      size: 48,
+                      color: t.textMuted,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      "You haven't uploaded anything yet.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: t.textSub,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Go to Global Resources to upload.',
+                      style: TextStyle(fontSize: 13, color: t.textMuted),
+                    ),
+                  ],
                 ),
               ),
             )
           else
             LayoutBuilder(
               builder: (_, c) {
-                final cols = c.maxWidth > 800
-                    ? 3
-                    : c.maxWidth > 500
-                    ? 2
-                    : 1;
+                final cols = c.maxWidth > 700 ? 3 : 2;
                 final w = (c.maxWidth - (10.0 * (cols - 1))) / cols;
                 return Wrap(
                   spacing: 10,
                   runSpacing: 10,
-                  children: state.categories.asMap().entries.map((e) {
-                    return _AdminCategoryCard(
-                      category: e.value,
-                      colorIndex: e.key,
-                      width: w,
-                      t: t,
-                      onEdit: () =>
-                          _showCategoryModal(context, t, existing: e.value),
-                      onDelete: () => _confirmDelete(context, e.value, t),
-                    );
-                  }).toList(),
+                  children: myResources
+                      .map(
+                        (r) => _CompactFileCard(
+                          resource: r,
+                          width: w,
+                          t: t,
+                          onView: () {},
+                          onDelete: () => _showConfirmDialog(
+                            context: context,
+                            t: t,
+                            title: 'Delete Resource',
+                            body: 'Delete "${r.title}"? Cannot be undone.',
+                            confirmLabel: 'Delete',
+                            isDestructive: true,
+                            onConfirm: () => context.read<AdminBloc>().add(
+                              AdminResourceDeleteRequested(r.id),
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
                 );
               },
             ),
@@ -1265,195 +2444,245 @@ class _CategoriesTab extends StatelessWidget {
       ),
     );
   }
+}
 
-  void _confirmDelete(BuildContext ctx, CategoryModel c, _T t) {
-    _showConfirmDialog(
-      context: ctx,
-      t: t,
-      title: 'Delete Category',
-      body:
-          'Delete "${c.name}"? All resources in this category will be unassigned.',
-      confirmLabel: 'Delete',
-      isDestructive: true,
-      onConfirm: () =>
-          ctx.read<AdminBloc>().add(AdminCategoryDeleteRequested(c.id)),
-    );
+// ─── ADMIN PROFILE TAB ────────────────────────────────────────────────────────
+class _ProfileTab extends StatefulWidget {
+  final _T t;
+  const _ProfileTab({required this.t});
+
+  @override
+  State<_ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<_ProfileTab> {
+  bool _isEditing = false;
+  bool _isSaving = false;
+
+  // 🗑️ DUMMY — delete when Firebase connected
+  // 🔥 FIREBASE: load from FirebaseAuth.instance.currentUser
+  //   + FirebaseFirestore.instance.collection('users').doc(uid).get()
+  String _name = 'Admin User';
+  String _email = 'admin@studyhub.com';
+  String _bio = 'StudyHub administrator.';
+
+  late TextEditingController _nameCtrl;
+  late TextEditingController _emailCtrl;
+  late TextEditingController _bioCtrl;
+  late TextEditingController _currPassCtrl;
+  late TextEditingController _newPassCtrl;
+
+  String get _initials {
+    final parts = _name.trim().split(' ');
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '?';
   }
 
-  void _showCategoryModal(
-    BuildContext context,
-    _T t, {
-    CategoryModel? existing,
-  }) {
-    final nameCtrl = TextEditingController(text: existing?.name ?? '');
-    final descCtrl = TextEditingController(text: existing?.description ?? '');
-    String selectedEmoji = existing?.emoji ?? '📁';
-    final emojis = [
-      '📁',
-      '💻',
-      '🧪',
-      '🍳',
-      '📚',
-      '🎨',
-      '🔧',
-      '🌐',
-      '🧠',
-      '📐',
-      '🎵',
-      '⚽',
-    ];
-    final isEdit = existing != null;
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: _name);
+    _emailCtrl = TextEditingController(text: _email);
+    _bioCtrl = TextEditingController(text: _bio);
+    _currPassCtrl = TextEditingController();
+    _newPassCtrl = TextEditingController();
+  }
 
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.6),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => Dialog(
-          backgroundColor: t.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: t.border),
-          ),
-          child: Container(
-            width: 400,
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      isEdit ? 'Edit Category' : 'Add Category',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: t.text,
-                      ),
-                    ),
-                    const Spacer(),
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () => Navigator.pop(ctx),
-                        child: Icon(Icons.close, size: 18, color: t.textMuted),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _bioCtrl.dispose();
+    _currPassCtrl.dispose();
+    _newPassCtrl.dispose();
+    super.dispose();
+  }
 
-                // Emoji picker
-                Text(
-                  'Icon',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: t.textMuted,
+  Future<void> _save() async {
+    setState(() => _isSaving = true);
+    await Future.delayed(const Duration(milliseconds: 800));
+    // 🔥 FIREBASE: await FirebaseFirestore.instance
+    //   .collection('users').doc(uid).update({...})
+    setState(() {
+      _name = _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : _name;
+      _email = _emailCtrl.text.trim().isNotEmpty
+          ? _emailCtrl.text.trim()
+          : _email;
+      _bio = _bioCtrl.text.trim();
+      _isEditing = false;
+      _isSaving = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.t;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(28),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    'Profile',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.6,
+                      color: t.text,
+                    ),
                   ),
+                  const Spacer(),
+                  _HoverBtn(
+                    label: _isEditing ? 'Cancel' : 'Edit Profile',
+                    t: t,
+                    primary: !_isEditing,
+                    onTap: () => setState(() => _isEditing = !_isEditing),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 28),
+
+              // Avatar card
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: t.surface,
+                  border: Border.all(color: t.border),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: emojis.map((e) {
-                    final isSel = selectedEmoji == e;
-                    return MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () => setS(() => selectedEmoji = e),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 100),
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: isSel
-                                ? (t.isDark ? Colors.white : Colors.black)
-                                : t.surface2,
-                            border: Border.all(
-                              color: isSel
-                                  ? (t.isDark ? Colors.white : Colors.black)
-                                  : t.border2,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              e,
-                              style: const TextStyle(fontSize: 18),
-                            ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: t.surface2,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: t.border2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _initials,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
                           ),
                         ),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _email,
+                          style: TextStyle(fontSize: 13, color: t.textSub),
+                        ),
+                        const SizedBox(height: 4),
+                        // Admin role badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: t.surface2,
+                            border: Border.all(color: t.border2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'ADMIN',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color: t.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
+              ),
+              const SizedBox(height: 28),
 
-                // Name
+              // Edit form
+              if (_isEditing) ...[
                 Text(
-                  'Category Name',
+                  'Edit Profile',
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: t.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: t.text,
                   ),
                 ),
-                const SizedBox(height: 8),
-                _ModalTextField(ctrl: nameCtrl, hint: 'e.g. Mathematics', t: t),
                 const SizedBox(height: 16),
-
-                // Description
+                _Label('Name', required: true, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _nameCtrl, hint: 'Full name', t: t),
+                const SizedBox(height: 16),
+                _Label('Email', required: true, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _emailCtrl, hint: 'Email address', t: t),
+                const SizedBox(height: 16),
+                _Label('Bio', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(ctrl: _bioCtrl, hint: 'About you...', t: t, maxLines: 3),
+                const SizedBox(height: 24),
                 Text(
-                  'Description',
+                  'Change Password',
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: t.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: t.text,
                   ),
                 ),
+                const SizedBox(height: 16),
+                _Label('Current Password', required: false, t: t),
                 const SizedBox(height: 8),
-                _ModalTextField(
-                  ctrl: descCtrl,
-                  hint: 'Brief description...',
+                _Field(
+                  ctrl: _currPassCtrl,
+                  hint: '••••••••',
                   t: t,
+                  obscure: true,
                 ),
-                const SizedBox(height: 24),
-
-                // Submit
+                const SizedBox(height: 16),
+                _Label('New Password', required: false, t: t),
+                const SizedBox(height: 8),
+                _Field(
+                  ctrl: _newPassCtrl,
+                  hint: '••••••••',
+                  t: t,
+                  obscure: true,
+                ),
+                const SizedBox(height: 28),
                 SizedBox(
                   width: double.infinity,
-                  child: _ModalBtn(
-                    label: isEdit ? 'Save Changes' : 'Add Category',
-                    primary: true,
+                  child: _SubmitBtn(
+                    isLoading: _isSaving,
                     t: t,
-                    onTap: () {
-                      final name = nameCtrl.text.trim();
-                      if (name.isEmpty) return;
-                      if (isEdit) {
-                        context.read<AdminBloc>().add(
-                          AdminCategoryEditRequested(
-                            id: existing!.id,
-                            name: name,
-                            description: descCtrl.text.trim(),
-                            emoji: selectedEmoji,
-                          ),
-                        );
-                      } else {
-                        context.read<AdminBloc>().add(
-                          AdminCategoryAddRequested(
-                            name: name,
-                            description: descCtrl.text.trim(),
-                            emoji: selectedEmoji,
-                          ),
-                        );
-                      }
-                      Navigator.pop(ctx);
-                    },
+                    label: 'Save Changes',
+                    onTap: _save,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -1499,17 +2728,9 @@ class _AdminCategoryCardState extends State<_AdminCategoryCard> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: _hover ? cc.bg : t.surface,
-          border: Border(
-            left: BorderSide(color: cc.border, width: 2),
-            top: BorderSide(
-              color: _hover ? cc.border.withOpacity(0.3) : t.border,
-            ),
-            right: BorderSide(
-              color: _hover ? cc.border.withOpacity(0.3) : t.border,
-            ),
-            bottom: BorderSide(
-              color: _hover ? cc.border.withOpacity(0.3) : t.border,
-            ),
+          border: Border.all(
+            color: _hover ? cc.border : t.border,
+            width: _hover ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(10),
         ),
@@ -1530,7 +2751,6 @@ class _AdminCategoryCardState extends State<_AdminCategoryCard> {
                   ),
                 ),
                 const Spacer(),
-                // Edit
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
@@ -1543,7 +2763,6 @@ class _AdminCategoryCardState extends State<_AdminCategoryCard> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // Delete
                 MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
@@ -1588,15 +2807,17 @@ class _AdminCategoryCardState extends State<_AdminCategoryCard> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ADMIN UPLOAD FORM (inline)
+// ADMIN UPLOAD FORM (inline) — UPDATED with preselectedCategoryId
 // ─────────────────────────────────────────────────────────────────────────────
 class _AdminUploadForm extends StatefulWidget {
   final _T t;
+  final String? preselectedCategoryId; // NEW
   final List<CategoryModel> categories;
   final bool isLoading;
   final Function(Map<String, String>) onSubmit;
   const _AdminUploadForm({
     required this.t,
+    this.preselectedCategoryId, // NEW
     required this.categories,
     required this.isLoading,
     required this.onSubmit,
@@ -1617,6 +2838,15 @@ class _AdminUploadFormState extends State<_AdminUploadForm> {
   String _errorMsg = '';
 
   final _fileTypes = {'pdf': '📄', 'excel': '📊', 'ppt': '📑', 'word': '📝'};
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-select category if provided
+    if (widget.preselectedCategoryId != null) {
+      _categoryId = widget.preselectedCategoryId!;
+    }
+  }
 
   @override
   void dispose() {
@@ -1749,7 +2979,6 @@ class _AdminUploadFormState extends State<_AdminUploadForm> {
 
           _Label('File', required: true, t: t),
           const SizedBox(height: 8),
-          // Simple file type selector
           Row(
             children: _fileTypes.entries.map((e) {
               final selected = _fileType == e.key;
