@@ -34,6 +34,22 @@ class ResourceModel {
     this.lastOpenedAt,
   });
 
+  // Getter for string version of type — used by admin dashboard filters
+  String get fileType {
+    switch (type) {
+      case ResourceType.pdf:
+        return 'pdf';
+      case ResourceType.excel:
+        return 'excel';
+      case ResourceType.ppt:
+        return 'ppt';
+      case ResourceType.word:
+        return 'word';
+      case ResourceType.article:
+        return 'article';
+    }
+  }
+
   // Helper — returns a display label for the file type
   String get typeLabel {
     switch (type) {
