@@ -1543,12 +1543,14 @@ class _CompactFileCard extends StatefulWidget {
   final _T t;
   final VoidCallback onView;
   final VoidCallback onDelete;
+  final VoidCallback onSave;
   const _CompactFileCard({
     required this.resource,
     required this.width,
     required this.t,
     required this.onView,
     required this.onDelete,
+    required this.onSave,
   });
 
   @override
@@ -1621,67 +1623,91 @@ class _CompactFileCardState extends State<_CompactFileCard> {
                     ),
                   ),
                   const Spacer(),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: widget.onDelete,
-                      child: Icon(
-                        Icons.delete_outline,
-                        size: 14,
-                        color: t.textMuted,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                r.title,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: t.text,
-                  height: 1.3,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(
-                      color: t.surface2,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: t.border2),
-                    ),
-                    child: Center(
-                      child: Text(
-                        r.uploadedBy.isNotEmpty
-                            ? r.uploadedBy[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w600,
-                          color: t.textSub,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: widget.onSave,
+                          child: Tooltip(
+                            message: 'Add to My Resources',
+                            child: Icon(
+                              Icons.bookmark_add_outlined,
+                              size: 14,
+                              color: t.textSub,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      // Delete
+                      MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: widget.onDelete,
+                          child: Tooltip(
+                            message: 'Delete',
+                            child: Icon(
+                              Icons.delete_outline,
+                              size: 14,
+                              color: const Color(0xFFFF6B6B),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      r.uploadedBy,
-                      style: TextStyle(fontSize: 10, color: t.textMuted),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                  const SizedBox(height: 8),
                   Text(
-                    '${r.uploadedAt.day}/${r.uploadedAt.month}',
-                    style: TextStyle(fontSize: 10, color: t.textMuted),
+                    r.title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: t.text,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: t.surface2,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: t.border2),
+                        ),
+                        child: Center(
+                          child: Text(
+                            r.uploadedBy.isNotEmpty
+                                ? r.uploadedBy[0].toUpperCase()
+                                : '?',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w600,
+                              color: t.textSub,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          r.uploadedBy,
+                          style: TextStyle(fontSize: 10, color: t.textMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${r.uploadedAt.day}/${r.uploadedAt.month}',
+                        style: TextStyle(fontSize: 10, color: t.textMuted),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2083,6 +2109,32 @@ class _GlobalResourcesTabState extends State<_GlobalResourcesTab> {
                             t: t,
                             onView: () => _showViewModal(context, r, t),
                             onDelete: () => _confirmDelete(context, r, t),
+                            onSave: () {
+                              context.read<AdminBloc>().add(
+                                AdminResourceScopeChanged(
+                                  id: r.id,
+                                  scope: 'private',
+                                ),
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  backgroundColor: t.surface,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    side: BorderSide(color: t.border),
+                                  ),
+                                  content: Text(
+                                    'Added to My Resources',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: t.text,
+                                    ),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            },
                           ),
                         )
                         .toList(),
@@ -2171,7 +2223,9 @@ class _GlobalResourcesTabState extends State<_GlobalResourcesTab> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              Divider(color: t.border, height: 1),
+              const SizedBox(height: 16),
               _ModalRow(label: 'File Type', value: r.typeLabel, t: t),
               _ModalRow(label: 'Category', value: r.categoryName, t: t),
               _ModalRow(label: 'Difficulty', value: r.difficultyLabel, t: t),
@@ -2182,6 +2236,142 @@ class _GlobalResourcesTabState extends State<_GlobalResourcesTab> {
                 t: t,
               ),
               _ModalRow(label: 'Uploaded by', value: r.uploadedBy, t: t),
+              const SizedBox(height: 8),
+
+              // ── Action buttons ──────────────────────────────────
+              Row(
+                children: [
+                  // Open file in new tab
+                  Expanded(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.pop(context);
+                          if (r.fileUrl.isNotEmpty) {
+                            // 🔥 FIREBASE: url_launcher
+                            // final uri = Uri.parse(r.fileUrl);
+                            // await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          decoration: BoxDecoration(
+                            color: t.isDark ? Colors.white : Colors.black,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.open_in_new,
+                                size: 14,
+                                color: t.isDark ? Colors.black : Colors.white,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Open File',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: t.isDark ? Colors.black : Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Add to My Resources
+                  Expanded(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          context.read<AdminBloc>().add(
+                            AdminResourceScopeChanged(
+                              id: r.id,
+                              scope: 'private',
+                            ),
+                          );
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: t.surface,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                side: BorderSide(color: t.border),
+                              ),
+                              content: Text(
+                                'Added to My Resources',
+                                style: TextStyle(fontSize: 12, color: t.text),
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          decoration: BoxDecoration(
+                            color: t.surface2,
+                            border: Border.all(color: t.border2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.bookmark_add_outlined,
+                                size: 14,
+                                color: t.textSub,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Save',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: t.text,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Delete
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _confirmDelete(context, r, t);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 11,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A1010),
+                          border: Border.all(color: const Color(0xFF4A1A1A)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: const Color(0xFFFF6B6B),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
