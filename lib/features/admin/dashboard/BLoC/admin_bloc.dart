@@ -51,6 +51,12 @@ class AdminResourceDeleteRequested extends AdminEvent {
   AdminResourceDeleteRequested(this.id);
 }
 
+// In admin_bloc.dart, add this event:
+class AdminResourceSavedToMyResources extends AdminEvent {
+  final String resourceId;
+  AdminResourceSavedToMyResources({required this.resourceId});
+}
+
 class AdminResourceUploadSubmitted extends AdminEvent {
   final String title;
   final String description;
@@ -184,6 +190,7 @@ class AdminError extends AdminState {
 class AdminLoaded extends AdminState {
   final bool isDarkMode;
   final AdminTab activeTab;
+  final List<String> savedResourceIds;
 
   // ✅ FIX: current logged-in admin identity
   // 🔥 FIREBASE: set this from FirebaseAuth.instance.currentUser!.uid on login
@@ -247,6 +254,7 @@ class AdminLoaded extends AdminState {
     this.userRoleFilter = '',
     this.userSort = 'date',
     this.userUploadsFilter = '',
+    this.savedResourceIds = const [],
     required this.categories,
     this.isActionLoading = false,
     this.successMessage,
@@ -275,6 +283,7 @@ class AdminLoaded extends AdminState {
     List<AdminUser>? users,
     List<AdminUser>? filteredUsers,
     String? userSearch,
+    List<String>? savedResourceIds,
     List<CategoryModel>? categories,
     bool? isActionLoading,
     String? successMessage,
@@ -306,6 +315,7 @@ class AdminLoaded extends AdminState {
       userSort: userSort ?? this.userSort,
       userUploadsFilter: userUploadsFilter ?? this.userUploadsFilter,
       categories: categories ?? this.categories,
+      savedResourceIds: savedResourceIds ?? this.savedResourceIds,
       isActionLoading: isActionLoading ?? this.isActionLoading,
       successMessage: clearMessages
           ? null
@@ -342,6 +352,25 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
     on<AdminCategoryEditRequested>(_onCategoryEditRequested);
     on<AdminCategoryDeleteRequested>(_onCategoryDeleteRequested);
     on<AdminProfileUpdated>(_onProfileUpdated);
+    // In admin_bloc.dart, inside your on<> handlers:
+    on<AdminResourceSavedToMyResources>((event, emit) async {
+      if (state is! AdminLoaded) return;
+      final current = state as AdminLoaded;
+      try {
+        await _repo.saveResourceToMyResources(
+          resourceId: event.resourceId,
+          adminId: current.currentAdminId,
+        );
+        emit(
+          current.copyWith(
+            savedResourceIds: [...current.savedResourceIds, event.resourceId],
+            successMessage: 'Saved to My Resources',
+          ),
+        );
+      } catch (e) {
+        emit(current.copyWith(errorMessage: 'Failed to save: $e'));
+      }
+    });
   }
 
   // ✅ NEW: updates identity fields in AdminLoaded state
@@ -525,6 +554,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
         AdminLoaded(
           isDarkMode: true,
           activeTab: AdminTab.overview,
+          savedResourceIds: const [],
           totalGlobalResources: resources.where((r) => r.isGlobal).length,
           totalUsers: users.length,
           totalCategories: categories.length,

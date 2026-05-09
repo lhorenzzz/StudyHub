@@ -150,6 +150,50 @@ class AdminRepository {
     // TODO: implement full Firebase upload — see comments above
   }
 
+  // In admin_repository.dart:
+  Future<void> saveResourceToMyResources({
+    required String resourceId,
+    required String adminId,
+  }) async {
+    // 🔥 FIREBASE: Creates a bookmark document in saved_resources collection
+    // await FirebaseFirestore.instance
+    //   .collection('saved_resources')
+    //   .doc('${adminId}_$resourceId')   // ← composite key prevents duplicates
+    //   .set({
+    //     'resource_id':  resourceId,
+    //     'saved_by':     adminId,
+    //     'saved_at':     FieldValue.serverTimestamp(),
+    //   });
+
+    // 🗑️ DUMMY — no-op until Firebase is connected
+    await Future.delayed(const Duration(milliseconds: 200));
+  }
+
+  Future<bool> isResourceSaved({
+    required String resourceId,
+    required String adminId,
+  }) async {
+    // 🔥 FIREBASE:
+    // final doc = await FirebaseFirestore.instance
+    //   .collection('saved_resources')
+    //   .doc('${adminId}_$resourceId')
+    //   .get();
+    // return doc.exists;
+    return false;
+  }
+
+  Future<void> unsaveResource({
+    required String resourceId,
+    required String adminId,
+  }) async {
+    // 🔥 FIREBASE:
+    // await FirebaseFirestore.instance
+    //   .collection('saved_resources')
+    //   .doc('${adminId}_$resourceId')
+    //   .delete();
+    await Future.delayed(const Duration(milliseconds: 200));
+  }
+
   // ── USERS ──────────────────────────────────────────────────────────────────
   // TODO (backend): GET /api/admin/users?search=
   // Response: [ { id, name, email, role, created_at } ]

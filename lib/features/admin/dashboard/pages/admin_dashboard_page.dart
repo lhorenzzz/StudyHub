@@ -2115,9 +2115,8 @@ class _GlobalResourcesTabState extends State<_GlobalResourcesTab> {
                             onDelete: () => _confirmDelete(context, r, t),
                             onSave: () {
                               context.read<AdminBloc>().add(
-                                AdminResourceScopeChanged(
-                                  id: r.id,
-                                  scope: 'private',
+                                AdminResourceSavedToMyResources(
+                                  resourceId: r.id,
                                 ),
                               );
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -4123,11 +4122,23 @@ class _MyResourcesViewState extends State<_MyResourcesView> {
   // 🔥 FIREBASE: 'uploaded_by' field stores the user's Firebase Auth UID
   //   NOT their display name — match against currentUser.uid always
 
-  List<ResourceModel> get _myResources =>
-      widget.state.resources
-          .where((r) => r.uploadedBy == widget.state.currentAdminId)
-          .toList()
-        ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+  List<ResourceModel> get _myResources {
+    final uploaded = widget.state.resources
+        .where((r) => r.uploadedBy == widget.state.currentAdminId)
+        .toList();
+
+    final saved = widget.state.resources
+        .where((r) => widget.state.savedResourceIds.contains(r.id))
+        .toList();
+
+    // Merge, deduplicate by id
+    final Map<String, ResourceModel> merged = {
+      for (final r in [...uploaded, ...saved]) r.id: r,
+    };
+
+    return merged.values.toList()
+      ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+  }
 
   List<ResourceModel> get _filtered {
     return _myResources.where((r) {
