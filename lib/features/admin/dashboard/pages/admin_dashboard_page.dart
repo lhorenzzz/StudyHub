@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:study_hub/core/theme/app_colors.dart';
 import 'package:study_hub/features/admin/dashboard/BLoC/admin_bloc.dart';
-import 'package:study_hub/features/admin/repository/admin_repository.dart';
+
 // Tabs
 import 'tabs/overview_tab.dart';
 import 'tabs/global_resources_tab.dart';
@@ -12,8 +12,8 @@ import 'tabs/users_tab.dart';
 import 'tabs/my_resources_tab.dart';
 import 'tabs/profile_tab.dart';
 // Shared widgets
-import 'widgets/theme_helper.dart';
-import 'widgets/shared_widgets.dart';
+import '../widgets/theme_helper.dart';
+import '../widgets/shared_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT PAGE  —  only wires BLoC + Scaffold + Navbar + PageSwitcher
@@ -656,6 +656,3 @@ class _TabItemState extends State<_TabItem> {
     );
   }
 }
-
-
-

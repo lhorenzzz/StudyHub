@@ -22,7 +22,6 @@ class AdminTheme {
 
 // Keep the old alias so all existing references (_T) compile without changes.
 
-
 // ─── CATEGORY COLOR PALETTE ───────────────────────────────────────────────────
 class CatColor {
   final Color border;
@@ -103,5 +102,3 @@ CatColor resolveCatColor(int i, bool dark) => dark
 
 // Internal shorthand used throughout the dashboard files.
 // Keeps all existing call-sites (resolveCatColor(i, t.isDark)) unchanged.
-
-

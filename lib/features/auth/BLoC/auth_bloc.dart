@@ -15,6 +15,8 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LoginSubmitted>(_onLogin);
     on<RegisterSubmitted>(_onRegister);
     on<AuthToggleForm>(_onToggle);
+    on<LogoutRequested>(_onLogout);
+    on<AuthCheckRequested>(_onAuthCheck);
   }
 
   // Tracks which form is currently active
@@ -48,6 +50,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   // Handles registration logic
+  // Handles registration logic
   Future<void> _onRegister(
     RegisterSubmitted event,
     Emitter<AuthState> emit,
@@ -65,5 +68,23 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       // TODO: Replace with real registration (Firebase, REST API, etc.)
       emit(const AuthSuccess(message: 'Account created!'));
     }
+  }
+
+  // Handles logout — clears state back to login form
+  // TODO (Firebase): replace body with FirebaseAuth.instance.signOut()
+  Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
+    _isLogin = true;
+    emit(const AuthInitial());
+  }
+
+  // Checks on app start if a user session already exists
+  // TODO (Firebase): replace body with FirebaseAuth.instance.currentUser check
+  Future<void> _onAuthCheck(
+    AuthCheckRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    // Placeholder — always goes to login for now
+    // Real version: if (FirebaseAuth.instance.currentUser != null) emit AuthSuccess
+    emit(const AuthInitial());
   }
 }

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/core/models/category_model.dart';
-import '../widgets/theme_helper.dart';
-import '../widgets/shared_widgets.dart';
+import '../../widgets/theme_helper.dart';
+import '../../widgets/shared_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMIN UPLOAD FORM

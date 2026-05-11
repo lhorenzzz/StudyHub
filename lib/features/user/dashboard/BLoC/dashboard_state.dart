@@ -17,9 +17,10 @@ class DashboardLoaded extends DashboardState {
   final bool isDarkMode;
   final String searchQuery;
   final ResourceModel? lastOpened;
-  final String? selectedCategoryId; // null = show all categories
+  final String? selectedCategoryId;
+  final List<ResourceModel> filteredResources;
 
-  const DashboardLoaded({
+  DashboardLoaded({
     required this.resources,
     required this.categories,
     required this.activeTab,
@@ -27,18 +28,25 @@ class DashboardLoaded extends DashboardState {
     this.searchQuery = '',
     this.lastOpened,
     this.selectedCategoryId,
-  });
+  }) : filteredResources = _computeFiltered(
+         resources,
+         activeTab,
+         searchQuery,
+         selectedCategoryId,
+       );
 
-  // Filtered resources based on tab, category, and search
-  List<ResourceModel> get filteredResources {
+  static List<ResourceModel> _computeFiltered(
+    List<ResourceModel> resources,
+    DashboardTab activeTab,
+    String searchQuery,
+    String? selectedCategoryId,
+  ) {
     List<ResourceModel> result = resources;
 
-    // Filter by selected category
     if (selectedCategoryId != null) {
       result = result.where((r) => r.categoryId == selectedCategoryId).toList();
     }
 
-    // Filter by active tab
     switch (activeTab) {
       case DashboardTab.starred:
         result = result.where((r) => r.isStarred).toList();
@@ -54,7 +62,6 @@ class DashboardLoaded extends DashboardState {
         break;
     }
 
-    // Filter by search
     if (searchQuery.isNotEmpty) {
       final q = searchQuery.toLowerCase();
       result = result
@@ -77,7 +84,7 @@ class DashboardLoaded extends DashboardState {
     String? searchQuery,
     ResourceModel? lastOpened,
     String? selectedCategoryId,
-    bool clearCategory = false, // pass true to deselect category
+    bool clearCategory = false,
   }) {
     return DashboardLoaded(
       resources: resources ?? this.resources,
@@ -101,6 +108,7 @@ class DashboardLoaded extends DashboardState {
     searchQuery,
     lastOpened,
     selectedCategoryId,
+    filteredResources,
   ];
 }
 

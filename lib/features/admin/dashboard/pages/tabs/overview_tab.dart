@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/features/admin/dashboard/BLoC/admin_bloc.dart';
-import '../widgets/theme_helper.dart';
-import '../widgets/shared_widgets.dart';
+import '../../widgets/theme_helper.dart';
+import '../../widgets/shared_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OVERVIEW TAB

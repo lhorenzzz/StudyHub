@@ -15,6 +15,37 @@ class DashboardTabChanged extends DashboardEvent {
   List<Object?> get props => [tab];
 }
 
+class GlobalResourceUploadSubmitted extends DashboardEvent {
+  final String title,
+      description,
+      categoryId,
+      categoryName,
+      difficulty,
+      tags,
+      fileName,
+      fileType;
+  GlobalResourceUploadSubmitted({
+    required this.title,
+    required this.description,
+    required this.categoryId,
+    required this.categoryName,
+    required this.difficulty,
+    required this.tags,
+    required this.fileName,
+    required this.fileType,
+  });
+}
+
+class GlobalResourceDeleted extends DashboardEvent {
+  final String resourceId;
+  GlobalResourceDeleted({required this.resourceId});
+}
+
+class ResourceSavedToMyResources extends DashboardEvent {
+  final String resourceId;
+  ResourceSavedToMyResources({required this.resourceId});
+}
+
 class ResourceStarToggled extends DashboardEvent {
   final String resourceId;
   const ResourceStarToggled(this.resourceId);

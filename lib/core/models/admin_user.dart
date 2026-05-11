@@ -94,19 +94,21 @@ class AdminUser {
     };
   }
 
-  // 🔥 FIREBASE: uncomment when Firestore is wired
-  // Replace toIso8601String() with Timestamp and import cloud_firestore
-  //
-  // factory AdminUser.fromFirestore(Map<String, dynamic> d, String docId) {
-  //   return AdminUser(
-  //     id:        docId,
-  //     name:      d['name']   ?? '',
-  //     email:     d['email']  ?? '',
-  //     role:      d['role']   ?? 'student',
-  //     status:    d['status'] ?? 'active',
-  //     createdAt: (d['created_at'] as Timestamp).toDate(),
-  //   );
-  // }
+  // Converts a Firestore document into an AdminUser object
+  // TODO (Firebase): import 'package:cloud_firestore/cloud_firestore.dart'
+  // and change the createdAt line to: (d['created_at'] as Timestamp).toDate()
+  factory AdminUser.fromFirestore(Map<String, dynamic> d, String docId) {
+    return AdminUser(
+      id: docId,
+      name: d['name'] ?? '',
+      email: d['email'] ?? '',
+      role: d['role'] ?? 'student',
+      status: d['status'] ?? 'active',
+      createdAt: d['created_at'] != null
+          ? DateTime.tryParse(d['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
 
   // ── Dummy factory (used by AdminRepository until Firebase is wired) ────────
   factory AdminUser.dummy({

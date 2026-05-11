@@ -424,7 +424,40 @@ class _AuthPageState extends State<AuthPage>
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
-                    onTap: () {},
+                    onTap: () {
+                      if (_emailCtrl.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: const Color(0xFF1C1C1C),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              side: const BorderSide(color: Color(0xFF2A2A2A)),
+                            ),
+                            content: const Text(
+                              'Enter your email above first.',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      // TODO (Firebase): FirebaseAuth.instance.sendPasswordResetEmail(email: _emailCtrl.text.trim())
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: const Color(0xFF1C1C1C),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: Color(0xFF2A2A2A)),
+                          ),
+                          content: Text(
+                            'Reset link sent to ${_emailCtrl.text.trim()}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      );
+                    },
                     child: const Text(
                       'Forgot password?',
                       style: TextStyle(
@@ -458,6 +491,25 @@ class _AuthPageState extends State<AuthPage>
                         ? null
                         : () {
                             if (isLogin) {
+                              if (!_emailCtrl.text.trim().contains('@')) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: const Color(0xFF1C1C1C),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      side: const BorderSide(
+                                        color: Color(0xFF2A2A2A),
+                                      ),
+                                    ),
+                                    content: const Text(
+                                      'Please enter a valid email address.',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               context.read<AuthBloc>().add(
                                 LoginSubmitted(
                                   email: _emailCtrl.text.trim(),
@@ -465,6 +517,25 @@ class _AuthPageState extends State<AuthPage>
                                 ),
                               );
                             } else {
+                              if (_passwordCtrl.text != _confirmCtrl.text) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: const Color(0xFF1C1C1C),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                      side: const BorderSide(
+                                        color: Color(0xFF2A2A2A),
+                                      ),
+                                    ),
+                                    content: const Text(
+                                      'Passwords do not match.',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
                               context.read<AuthBloc>().add(
                                 RegisterSubmitted(
                                   name: _nameCtrl.text.trim(),
@@ -522,9 +593,9 @@ class _AuthPageState extends State<AuthPage>
                   cursor: SystemMouseCursors.click,
                   child: GestureDetector(
                     onTap: () => context.read<AuthBloc>().add(AuthToggleForm()),
-                    child: const Text(
-                      'Sign up',
-                      style: TextStyle(
+                    child: Text(
+                      isLogin ? 'Sign up' : 'Sign in',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,

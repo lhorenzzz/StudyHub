@@ -33,3 +33,7 @@ class RegisterSubmitted extends AuthEvent {
 }
 
 class AuthToggleForm extends AuthEvent {}
+
+class LogoutRequested extends AuthEvent {}
+
+class AuthCheckRequested extends AuthEvent {}

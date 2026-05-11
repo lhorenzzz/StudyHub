@@ -18,6 +18,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardSearchChanged>(_onSearchChanged);
     on<CategorySelected>(_onCategorySelected);
     on<CategoryAdded>(_onCategoryAdded);
+    on<GlobalResourceUploadSubmitted>(_onGlobalUpload); // ← add
+    on<GlobalResourceDeleted>(_onGlobalDelete); // ← add
+    on<ResourceSavedToMyResources>(_onSaveToMyResources); // ← add
   }
 
   Future<void> _onStarted(
@@ -25,112 +28,116 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     Emitter<DashboardState> emit,
   ) async {
     emit(DashboardLoading());
-    await Future.delayed(const Duration(milliseconds: 600));
+    try {
+      await Future.delayed(const Duration(milliseconds: 600));
 
-    final categories = [
-      const CategoryModel(
-        id: 'it',
-        name: 'Information Technology',
-        emoji: '💻',
-        description: 'Networking, OS, security basics',
-        resourceCount: 12,
-      ),
-      const CategoryModel(
-        id: 'science',
-        name: 'Science',
-        emoji: '🧪',
-        description: 'Physics, chemistry, biology',
-        resourceCount: 8,
-      ),
-      const CategoryModel(
-        id: 'cookery',
-        name: 'Cookery',
-        emoji: '🍳',
-        description: 'Recipes, techniques, nutrition',
-        resourceCount: 5,
-      ),
-    ];
+      final categories = [
+        const CategoryModel(
+          id: 'it',
+          name: 'Information Technology',
+          emoji: '💻',
+          description: 'Networking, OS, security basics',
+          resourceCount: 12,
+        ),
+        const CategoryModel(
+          id: 'science',
+          name: 'Science',
+          emoji: '🧪',
+          description: 'Physics, chemistry, biology',
+          resourceCount: 8,
+        ),
+        const CategoryModel(
+          id: 'cookery',
+          name: 'Cookery',
+          emoji: '🍳',
+          description: 'Recipes, techniques, nutrition',
+          resourceCount: 5,
+        ),
+      ];
 
-    final resources = [
-      ResourceModel(
-        id: '1',
-        title: 'HTML Basics — Structure & Tags',
-        categoryId: 'it',
-        categoryName: 'Information Technology',
-        type: ResourceType.article,
-        difficulty: DifficultyLevel.beginner,
-        uploadedBy: 'admin',
-        uploadedAt: DateTime.now().subtract(const Duration(days: 3)),
-        isStarred: true,
-        lastOpenedAt: DateTime.now().subtract(const Duration(hours: 2)),
-      ),
-      ResourceModel(
-        id: '2',
-        title: 'CSS Cheat Sheet',
-        categoryId: 'it',
-        categoryName: 'Information Technology',
-        type: ResourceType.pdf,
-        difficulty: DifficultyLevel.beginner,
-        uploadedBy: 'admin',
-        uploadedAt: DateTime.now().subtract(const Duration(days: 5)),
-      ),
-      ResourceModel(
-        id: '3',
-        title: 'Python Variables & Data Types',
-        categoryId: 'it',
-        categoryName: 'Information Technology',
-        type: ResourceType.article,
-        difficulty: DifficultyLevel.beginner,
-        uploadedBy: 'admin',
-        uploadedAt: DateTime.now().subtract(const Duration(days: 7)),
-        isPinned: true,
-      ),
-      ResourceModel(
-        id: '4',
-        title: 'OSI Model Reference Sheet',
-        categoryId: 'it',
-        categoryName: 'Information Technology',
-        type: ResourceType.pdf,
-        difficulty: DifficultyLevel.beginner,
-        uploadedBy: 'admin',
-        uploadedAt: DateTime.now().subtract(const Duration(days: 10)),
-        isStarred: true,
-      ),
-      ResourceModel(
-        id: '5',
-        title: 'Basic Chemistry Notes',
-        categoryId: 'science',
-        categoryName: 'Science',
-        type: ResourceType.word,
-        difficulty: DifficultyLevel.beginner,
-        uploadedBy: 'admin',
-        uploadedAt: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      ResourceModel(
-        id: '6',
-        title: 'Knife Skills & Cutting Techniques',
-        categoryId: 'cookery',
-        categoryName: 'Cookery',
-        type: ResourceType.ppt,
-        difficulty: DifficultyLevel.beginner,
-        uploadedBy: 'admin',
-        uploadedAt: DateTime.now().subtract(const Duration(days: 1)),
-        lastOpenedAt: DateTime.now().subtract(const Duration(minutes: 30)),
-      ),
-    ];
+      final resources = [
+        ResourceModel(
+          id: '1',
+          title: 'HTML Basics — Structure & Tags',
+          categoryId: 'it',
+          categoryName: 'Information Technology',
+          type: ResourceType.article,
+          difficulty: DifficultyLevel.beginner,
+          uploadedBy: 'admin',
+          uploadedAt: DateTime.now().subtract(const Duration(days: 3)),
+          isStarred: true,
+          lastOpenedAt: DateTime.now().subtract(const Duration(hours: 2)),
+        ),
+        ResourceModel(
+          id: '2',
+          title: 'CSS Cheat Sheet',
+          categoryId: 'it',
+          categoryName: 'Information Technology',
+          type: ResourceType.pdf,
+          difficulty: DifficultyLevel.beginner,
+          uploadedBy: 'admin',
+          uploadedAt: DateTime.now().subtract(const Duration(days: 5)),
+        ),
+        ResourceModel(
+          id: '3',
+          title: 'Python Variables & Data Types',
+          categoryId: 'it',
+          categoryName: 'Information Technology',
+          type: ResourceType.article,
+          difficulty: DifficultyLevel.beginner,
+          uploadedBy: 'admin',
+          uploadedAt: DateTime.now().subtract(const Duration(days: 7)),
+          isPinned: true,
+        ),
+        ResourceModel(
+          id: '4',
+          title: 'OSI Model Reference Sheet',
+          categoryId: 'it',
+          categoryName: 'Information Technology',
+          type: ResourceType.pdf,
+          difficulty: DifficultyLevel.beginner,
+          uploadedBy: 'admin',
+          uploadedAt: DateTime.now().subtract(const Duration(days: 10)),
+          isStarred: true,
+        ),
+        ResourceModel(
+          id: '5',
+          title: 'Basic Chemistry Notes',
+          categoryId: 'science',
+          categoryName: 'Science',
+          type: ResourceType.word,
+          difficulty: DifficultyLevel.beginner,
+          uploadedBy: 'admin',
+          uploadedAt: DateTime.now().subtract(const Duration(days: 2)),
+        ),
+        ResourceModel(
+          id: '6',
+          title: 'Knife Skills & Cutting Techniques',
+          categoryId: 'cookery',
+          categoryName: 'Cookery',
+          type: ResourceType.ppt,
+          difficulty: DifficultyLevel.beginner,
+          uploadedBy: 'admin',
+          uploadedAt: DateTime.now().subtract(const Duration(days: 1)),
+          lastOpenedAt: DateTime.now().subtract(const Duration(minutes: 30)),
+        ),
+      ];
 
-    final opened = resources.where((r) => r.lastOpenedAt != null).toList()
-      ..sort((a, b) => b.lastOpenedAt!.compareTo(a.lastOpenedAt!));
+      final opened = resources.where((r) => r.lastOpenedAt != null).toList()
+        ..sort((a, b) => b.lastOpenedAt!.compareTo(a.lastOpenedAt!));
 
-    emit(
-      DashboardLoaded(
-        resources: resources,
-        categories: categories,
-        activeTab: DashboardTab.all,
-        isDarkMode: true,
-        lastOpened: opened.isNotEmpty ? opened.first : null,
-      ),
-    );
+      emit(
+        DashboardLoaded(
+          resources: resources,
+          categories: categories,
+          activeTab: DashboardTab.all,
+          isDarkMode: true,
+          lastOpened: opened.isNotEmpty ? opened.first : null,
+        ),
+      );
+    } catch (e) {
+      emit(DashboardError('Failed to load resources. Please try again.'));
+    }
   }
 
   void _onTabChanged(DashboardTabChanged event, Emitter<DashboardState> emit) {
@@ -252,4 +259,74 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       emit(cur.copyWith(categories: [...cur.categories, newCategory]));
     }
   }
-}
+
+  // ── these must be INSIDE the class ───────────────────────────────────────
+  void _onGlobalUpload(
+    GlobalResourceUploadSubmitted event,
+    Emitter<DashboardState> emit,
+  ) {
+    if (state is DashboardLoaded) {
+      final cur = state as DashboardLoaded;
+      final newResource = ResourceModel(
+        id: 'res_${DateTime.now().millisecondsSinceEpoch}',
+        title: event.title,
+        categoryId: event.categoryId,
+        categoryName: event.categoryName,
+        type: ResourceType.values.firstWhere(
+          (t) => t.name == event.fileType,
+          orElse: () => ResourceType.pdf,
+        ),
+        difficulty: event.difficulty == 'Beginner'
+            ? DifficultyLevel.beginner
+            : DifficultyLevel.intermediate,
+        uploadedBy: '',
+        uploadedAt: DateTime.now(),
+        scope: ResourceScope.global,
+      );
+      emit(cur.copyWith(resources: [...cur.resources, newResource]));
+    }
+  }
+
+  void _onGlobalDelete(
+    GlobalResourceDeleted event,
+    Emitter<DashboardState> emit,
+  ) {
+    if (state is DashboardLoaded) {
+      final cur = state as DashboardLoaded;
+      emit(
+        cur.copyWith(
+          resources: cur.resources
+              .where((r) => r.id != event.resourceId)
+              .toList(),
+        ),
+      );
+    }
+  }
+
+  void _onSaveToMyResources(
+    ResourceSavedToMyResources event,
+    Emitter<DashboardState> emit,
+  ) {
+    // ── TODO (Firebase) ───────────────────────────────────────────────────
+    // final uid = FirebaseAuth.instance.currentUser!.uid;
+    // await FirebaseFirestore.instance
+    //   .collection('users').doc(uid)
+    //   .collection('saved').doc(event.resourceId)
+    //   .set({'savedAt': FieldValue.serverTimestamp()});
+    // ─────────────────────────────────────────────────────────────────────
+    if (state is DashboardLoaded) {
+      final cur = state as DashboardLoaded;
+      // Mark the resource as private (saved to My Resources) in local state
+      emit(
+        cur.copyWith(
+          resources: cur.resources.map((r) {
+            if (r.id == event.resourceId) {
+              return r.copyWith(scope: ResourceScope.private);
+            }
+            return r;
+          }).toList(),
+        ),
+      );
+    }
+  }
+} // ← class closes HERE, after all handlers

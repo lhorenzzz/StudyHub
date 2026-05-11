@@ -17,9 +17,19 @@ import 'package:study_hub/core/models/admin_user.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/core/models/category_model.dart';
 
-// ── Backend base URL ──────────────────────────────────────────────────────────
-// TODO (backend): Replace with your actual server URL
-const String _base = 'http://localhost/studyhub/api';
+// ── Backend strategy — PICK ONE before launch ─────────────────────────────────
+// OPTION A (Firebase SDK — recommended, matches the rest of the codebase):
+//   Delete _base entirely. Replace each method body with Firestore SDK calls.
+//   Example: FirebaseFirestore.instance.collection('resources').get()
+//
+// OPTION B (REST API):
+//   Replace _base with your real deployed server URL.
+//   Example: const String _base = 'https://api.studyhub.app';
+//   Then uncomment the http.get / http.post / http.delete calls in each method.
+//
+// Right now this is a MOCK — no real data is read or written anywhere.
+// ─────────────────────────────────────────────────────────────────────────────
+const String _base = 'http://localhost/studyhub/api'; // ← replace before launch
 
 // ── Data models specific to admin ────────────────────────────────────────────
 

@@ -3,8 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/features/admin/dashboard/BLoC/admin_bloc.dart';
-import '../widgets/theme_helper.dart';
-import '../widgets/shared_widgets.dart';
+import '../../widgets/theme_helper.dart';
+import '../../widgets/shared_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROFILE TAB
