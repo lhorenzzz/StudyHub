@@ -25,17 +25,18 @@ class _AuthPageState extends State<AuthPage>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
-  // ── Brand palette ──────────────────────────────────────────────────────
-  static const _bgDeep = Color(0xFF08041A);
-  static const _bgLeft = Color(0xFF0D0829);
-  static const _bgPanel = Color(0xFF0A051F);
-  static const _bgCard = Color(0xFF130B2E);
-  static const _border = Color(0xFF2A1A55);
-  static const _violet = Color(0xFF7C3AED);
-  static const _violet2 = Color(0xFF9F5FFF);
-  static const _pink = Color(0xFFEC4899);
-  static const _textSub = Color(0xFF8B72B8);
-  static const _glow = Color(0xFFC084FC);
+  // ── B&W palette — sun is the ONLY color element on the page ───────────
+  static const _bgDeep = Color(0xFF0A0A0A); // main scaffold bg
+  static const _bgLeft = Color(0xFF111111); // left hero panel
+  static const _bgPanel = Color(0xFF0D0D0D); // right form panel
+  static const _bgCard = Color(0xFF1C1C1C); // input fill
+  static const _border = Color(0xFF2A2A2A); // all borders
+  static const _textSub = Color(0xFF777777); // subdued text
+  static const _glow = Color(0xFFAAAAAA); // links / forgot password
+  // 🌞 these are the ONLY colors allowed — everything else is B&W
+  static const _sunCore = Color(0xFFFFFBEB); // bright white-yellow core
+  static const _sunWarm = Color(0xFFFDE68A); // warm yellow mid-glow
+  static const _sunAmber = Color(0xFFF59E0B); // amber outer ring
 
   @override
   void initState() {
@@ -77,10 +78,11 @@ class _AuthPageState extends State<AuthPage>
             if (state is AuthFailure) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  backgroundColor: const Color(0xFF2A1A55),
+                  backgroundColor: const Color(0xFF1C1C1C),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(color: Color(0xFF2A2A2A)),
                   ),
                   content: Text(
                     state.error,
@@ -92,10 +94,11 @@ class _AuthPageState extends State<AuthPage>
             if (state is AuthSuccess) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  backgroundColor: _violet,
+                  backgroundColor: const Color(0xFF1C1C1C),
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(color: Color(0xFF2A2A2A)),
                   ),
                   content: Text(
                     state.message,
@@ -129,32 +132,23 @@ class _AuthPageState extends State<AuthPage>
               color: _bgLeft,
               child: Stack(
                 children: [
-                  // Violet orb top-left
+                  // Subtle white smoke — top left
                   Positioned(
                     top: -100,
                     left: -60,
-                    child: _glowOrb(280, _violet.withOpacity(0.22)),
+                    child: _glowOrb(300, Colors.white.withOpacity(0.03)),
                   ),
-                  // Pink orb bottom-right
+                  // Sun warm glow bleeds into bottom right — only color
                   Positioned(
-                    bottom: 20,
-                    right: 20,
-                    child: _glowOrb(200, _pink.withOpacity(0.12)),
+                    bottom: 40,
+                    right: 40,
+                    child: _glowOrb(260, _sunWarm.withOpacity(0.07)),
                   ),
-                  // Dot grid
+                  // Dot grid — B&W
                   Positioned.fill(
                     child: CustomPaint(painter: _DotGridPainter()),
                   ),
-                  // Lamp warm glow (cone of light on desk)
-                  Positioned(
-                    right: 30,
-                    bottom: 60,
-                    child: _glowOrb(
-                      280,
-                      const Color(0xFFFDE68A).withOpacity(0.10),
-                    ),
-                  ),
-                  // Lamp scene — right side
+                  // Lamp scene — right side (sun stays yellow, rest is B&W)
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -179,21 +173,15 @@ class _AuthPageState extends State<AuthPage>
                         children: [
                           _buildLogo(),
                           const SizedBox(height: 56),
-                          ShaderMask(
-                            shaderCallback: (b) => const LinearGradient(
-                              colors: [Colors.white, Color(0xFFC084FC)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ).createShader(b),
-                            child: const Text(
-                              'Your study,\nyour space.',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 46,
-                                fontWeight: FontWeight.w800,
-                                height: 1.1,
-                                letterSpacing: -2,
-                              ),
+                          // Plain white — no gradient
+                          const Text(
+                            'Your study,\nyour space.',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 46,
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                              letterSpacing: -2,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -206,7 +194,6 @@ class _AuthPageState extends State<AuthPage>
                             ),
                           ),
                           const SizedBox(height: 36),
-                          // Feature items — matching reference layout
                           Wrap(
                             spacing: 20,
                             runSpacing: 16,
@@ -232,7 +219,7 @@ class _AuthPageState extends State<AuthPage>
                           Text(
                             '© ${DateTime.now().year} StudyHub',
                             style: const TextStyle(
-                              color: Color(0xFF2A1A55),
+                              color: Color(0xFF333333),
                               fontSize: 12,
                             ),
                           ),
@@ -250,7 +237,7 @@ class _AuthPageState extends State<AuthPage>
           width: isLarge ? 460 : 400,
           decoration: BoxDecoration(
             color: _bgPanel,
-            border: Border(left: BorderSide(color: _border.withOpacity(0.5))),
+            border: Border(left: BorderSide(color: _border.withOpacity(0.8))),
           ),
           child: Center(
             child: SingleChildScrollView(
@@ -285,26 +272,17 @@ class _AuthPageState extends State<AuthPage>
   Widget _buildMobileLayout() {
     return Stack(
       children: [
-        Positioned.fill(
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0D0829), Color(0xFF08041A)],
-              ),
-            ),
-          ),
-        ),
+        Positioned.fill(child: Container(color: _bgDeep)),
+        // subtle white smoke orbs
         Positioned(
           top: -80,
           left: -60,
-          child: _glowOrb(220, _violet.withOpacity(0.2)),
+          child: _glowOrb(220, Colors.white.withOpacity(0.03)),
         ),
         Positioned(
           bottom: 0,
           right: -40,
-          child: _glowOrb(180, _pink.withOpacity(0.12)),
+          child: _glowOrb(180, Colors.white.withOpacity(0.02)),
         ),
         SafeArea(
           child: SingleChildScrollView(
@@ -338,21 +316,17 @@ class _AuthPageState extends State<AuthPage>
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [_violet, _violet2],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
               BoxShadow(
-                color: _violet.withOpacity(0.45),
+                color: Colors.white.withOpacity(0.12),
                 blurRadius: 14,
                 offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Icon(Icons.book_rounded, color: Colors.white, size: 18),
+          child: const Icon(Icons.book_rounded, color: Colors.black, size: 18),
         ),
         const SizedBox(width: 10),
         const Text(
@@ -369,6 +343,7 @@ class _AuthPageState extends State<AuthPage>
   }
 
   // ─── FORM ─────────────────────────────────────────────────────────────────
+  // ⚠️ LOGIC UNTOUCHED — only colors/styling changed
   Widget _buildForm() {
     return BlocBuilder<AuthBloc, AuthState>(
       builder: (context, state) {
@@ -465,7 +440,7 @@ class _AuthPageState extends State<AuthPage>
 
             const SizedBox(height: 28),
 
-            // ── Submit button ──
+            // ── Submit button — solid white/black, matches dashboard style ──
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -475,24 +450,8 @@ class _AuthPageState extends State<AuthPage>
                     : SystemMouseCursors.click,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    gradient: isLoading
-                        ? null
-                        : const LinearGradient(
-                            colors: [_violet, _pink],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                          ),
-                    color: isLoading ? _border : null,
+                    color: isLoading ? const Color(0xFF2A2A2A) : Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    boxShadow: isLoading
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: _violet.withOpacity(0.45),
-                              blurRadius: 20,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
                   ),
                   child: ElevatedButton(
                     onPressed: isLoading
@@ -517,7 +476,7 @@ class _AuthPageState extends State<AuthPage>
                           },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
-                      foregroundColor: Colors.white,
+                      foregroundColor: Colors.black,
                       disabledBackgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                       elevation: 0,
@@ -540,6 +499,7 @@ class _AuthPageState extends State<AuthPage>
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                               letterSpacing: -0.2,
+                              color: Colors.black,
                             ),
                           ),
                   ),
@@ -565,7 +525,7 @@ class _AuthPageState extends State<AuthPage>
                     child: const Text(
                       'Sign up',
                       style: TextStyle(
-                        color: _glow,
+                        color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -585,7 +545,7 @@ class _AuthPageState extends State<AuthPage>
     return Text(
       text,
       style: const TextStyle(
-        color: Color(0xFF9B7DC4),
+        color: Color(0xFF888888),
         fontSize: 13,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.2,
@@ -607,11 +567,11 @@ class _AuthPageState extends State<AuthPage>
       obscureText: obscure,
       keyboardType: keyboardType,
       style: const TextStyle(color: Colors.white, fontSize: 15),
-      cursorColor: _glow,
+      cursorColor: Colors.white,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF3D2560), fontSize: 15),
-        prefixIcon: Icon(icon, color: const Color(0xFF5B3D8A), size: 20),
+        hintStyle: const TextStyle(color: Color(0xFF444444), fontSize: 15),
+        prefixIcon: Icon(icon, color: const Color(0xFF555555), size: 20),
         suffixIcon: toggleObscure != null
             ? MouseRegion(
                 cursor: SystemMouseCursors.click,
@@ -621,7 +581,7 @@ class _AuthPageState extends State<AuthPage>
                     obscure
                         ? Icons.visibility_off_outlined
                         : Icons.visibility_outlined,
-                    color: const Color(0xFF5B3D8A),
+                    color: const Color(0xFF555555),
                     size: 20,
                   ),
                 ),
@@ -643,12 +603,13 @@ class _AuthPageState extends State<AuthPage>
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _violet2, width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF555555), width: 1.5),
         ),
       ),
     );
   }
 
+  // ─── GLOW ORB — B&W smoke only ────────────────────────────────────────────
   Widget _glowOrb(double size, Color color) {
     return Container(
       width: size,
@@ -661,7 +622,7 @@ class _AuthPageState extends State<AuthPage>
   }
 }
 
-// ─── FEATURE ITEM ─────────────────────────────────────────────────────────
+// ─── FEATURE ITEM — B&W ───────────────────────────────────────────────────
 class _FeatureItem extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -683,11 +644,11 @@ class _FeatureItem extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: const Color(0xFF1E0A3C),
+            color: const Color(0xFF1C1C1C),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF3D1D78), width: 0.8),
+            border: Border.all(color: const Color(0xFF2A2A2A), width: 0.8),
           ),
-          child: Icon(icon, color: const Color(0xFF9F5FFF), size: 18),
+          child: Icon(icon, color: const Color(0xFF888888), size: 18),
         ),
         const SizedBox(width: 10),
         Column(
@@ -704,7 +665,7 @@ class _FeatureItem extends StatelessWidget {
             Text(
               subtitle,
               style: const TextStyle(
-                color: Color(0xFF7B5FA0),
+                color: Color(0xFF555555),
                 fontSize: 11,
                 height: 1.5,
               ),
@@ -716,45 +677,43 @@ class _FeatureItem extends StatelessWidget {
   }
 }
 
-// ─── LAMP SCENE PAINTER ───────────────────────────────────────────────────
-// Paints the desk lamp (right-side), stacked books, and mug
-// matching the reference image layout.
+// ─── LAMP SCENE PAINTER — sun stays yellow, everything else is B&W ────────
 class _LampScenePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
 
-    // ── Table surface ──────────────────────────────────────────────────────
+    // ── Table surface — dark gray ──────────────────────────────────────────
     final tableY = h * 0.74;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.02, tableY, w * 0.96, h * 0.07),
         const Radius.circular(6),
       ),
-      Paint()..color = const Color(0xFF160930),
+      Paint()..color = const Color(0xFF1A1A1A),
     );
 
-    // ── Warm cone of light on table ────────────────────────────────────────
+    // ── 🌞 Warm cone of light — ONLY color allowed ─────────────────────────
     final coneShader = Paint()
       ..shader = RadialGradient(
         center: const Alignment(0.35, 0.0),
         radius: 0.75,
         colors: [
-          const Color(0xFFFDE68A).withOpacity(0.22),
-          const Color(0xFFF59E0B).withOpacity(0.06),
+          const Color(0xFFFDE68A).withOpacity(0.18), // warm yellow
+          const Color(0xFFF59E0B).withOpacity(0.05), // amber fade
           Colors.transparent,
         ],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawRect(Rect.fromLTWH(0, 0, w, h), coneShader);
 
-    // ── BOOK STACK (center-right, under lamp) ──────────────────────────────
+    // ── BOOK STACK — grayscale ─────────────────────────────────────────────
     final bkW = [w * 0.40, w * 0.34, w * 0.27];
     final bkH = [h * 0.055, h * 0.047, h * 0.040];
     final bkC = [
-      const Color(0xFF2D1B69),
-      const Color(0xFF3D2280),
-      const Color(0xFF4C2B8F),
+      const Color(0xFF222222),
+      const Color(0xFF2E2E2E),
+      const Color(0xFF3A3A3A),
     ];
     final bkLeft = w * 0.30;
     double bkY = tableY - bkH[0];
@@ -775,30 +734,30 @@ class _LampScenePainter extends CustomPainter {
           Rect.fromLTWH(bx, bkY, 4, bkH[i]),
           const Radius.circular(2),
         ),
-        Paint()..color = Colors.black.withOpacity(0.28),
+        Paint()..color = Colors.black.withOpacity(0.35),
       );
-      // right page edge
+      // right page edge highlight
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromLTWH(bx + bkW[i] - 5, bkY + 2, 4, bkH[i] - 4),
           const Radius.circular(1),
         ),
-        Paint()..color = Colors.white.withOpacity(0.07),
+        Paint()..color = Colors.white.withOpacity(0.05),
       );
-      // warm glow on top book surface
+      // 🌞 top book catches warm light from sun
       if (i == 2) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTWH(bx, bkY, bkW[i], bkH[i] * 0.45),
             const Radius.circular(3),
           ),
-          Paint()..color = const Color(0xFFFDE68A).withOpacity(0.18),
+          Paint()..color = const Color(0xFFFDE68A).withOpacity(0.12),
         );
       }
       if (i < 2) bkY -= bkH[i + 1];
     }
 
-    // ── MUG (left of books) ────────────────────────────────────────────────
+    // ── MUG — grayscale ────────────────────────────────────────────────────
     final mgX = w * 0.06;
     final mgY = tableY - h * 0.13;
     final mgW = w * 0.15;
@@ -810,7 +769,7 @@ class _LampScenePainter extends CustomPainter {
         Rect.fromLTWH(mgX, mgY, mgW, mgH),
         const Radius.circular(5),
       ),
-      Paint()..color = const Color(0xFF1A0A35),
+      Paint()..color = const Color(0xFF1A1A1A),
     );
     // rim
     canvas.drawRRect(
@@ -818,7 +777,7 @@ class _LampScenePainter extends CustomPainter {
         Rect.fromLTWH(mgX - 1, mgY - 4, mgW + 2, 7),
         const Radius.circular(3),
       ),
-      Paint()..color = const Color(0xFF2D1B55),
+      Paint()..color = const Color(0xFF2A2A2A),
     );
     // handle
     final handle = Path()
@@ -834,14 +793,14 @@ class _LampScenePainter extends CustomPainter {
     canvas.drawPath(
       handle,
       Paint()
-        ..color = const Color(0xFF2D1B55)
+        ..color = const Color(0xFF2A2A2A)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5.5
         ..strokeCap = StrokeCap.round,
     );
-    // steam
+    // steam — subtle white wisps
     final steamP = Paint()
-      ..color = const Color(0xFFA855F7).withOpacity(0.30)
+      ..color = Colors.white.withOpacity(0.12)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
@@ -853,11 +812,10 @@ class _LampScenePainter extends CustomPainter {
       canvas.drawPath(sp, steamP);
     }
 
-    // ── LAMP ──────────────────────────────────────────────────────────────
-    // Lamp is positioned in the upper-right of the scene
-    final lampBX = w * 0.68; // base center X
+    // ── LAMP — grayscale ───────────────────────────────────────────────────
+    final lampBX = w * 0.68;
 
-    // Base
+    // Base — dark gray
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(lampBX - w * 0.07, tableY - 6, w * 0.14, 9),
@@ -866,7 +824,7 @@ class _LampScenePainter extends CustomPainter {
       Paint()
         ..shader =
             LinearGradient(
-              colors: [const Color(0xFF3D1D78), const Color(0xFF2A1055)],
+              colors: [const Color(0xFF333333), const Color(0xFF1A1A1A)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ).createShader(
@@ -874,17 +832,17 @@ class _LampScenePainter extends CustomPainter {
             ),
     );
 
-    // Vertical pole
+    // Vertical pole — medium gray
     final poleTop = h * 0.38;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(lampBX - 4, poleTop, 8, tableY - 6 - poleTop),
         const Radius.circular(4),
       ),
-      Paint()..color = const Color(0xFF5B2FBF),
+      Paint()..color = const Color(0xFF333333),
     );
 
-    // Arm curving to shade (upper-left direction)
+    // Arm — gray
     final shadeCX = lampBX - w * 0.28;
     final shadeCY = poleTop - h * 0.04;
     final arm = Path()
@@ -900,25 +858,25 @@ class _LampScenePainter extends CustomPainter {
     canvas.drawPath(
       arm,
       Paint()
-        ..color = const Color(0xFF6D28D9)
+        ..color = const Color(0xFF3A3A3A)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 10
         ..strokeCap = StrokeCap.round,
     );
 
-    // Shade trapezoid (pointing left/down like ref image)
+    // Shade trapezoid — dark gray
     final shadePath = Path()
-      ..moveTo(shadeCX - w * 0.18, shadeCY + h * 0.06) // bottom-left
-      ..lineTo(shadeCX - w * 0.07, shadeCY - h * 0.09) // top-left
-      ..lineTo(shadeCX + w * 0.07, shadeCY - h * 0.09) // top-right
-      ..lineTo(shadeCX + w * 0.17, shadeCY + h * 0.06) // bottom-right
+      ..moveTo(shadeCX - w * 0.18, shadeCY + h * 0.06)
+      ..lineTo(shadeCX - w * 0.07, shadeCY - h * 0.09)
+      ..lineTo(shadeCX + w * 0.07, shadeCY - h * 0.09)
+      ..lineTo(shadeCX + w * 0.17, shadeCY + h * 0.06)
       ..close();
     canvas.drawPath(
       shadePath,
       Paint()
         ..shader =
             LinearGradient(
-              colors: [const Color(0xFF4C1D95), const Color(0xFF3B0F7A)],
+              colors: [const Color(0xFF2A2A2A), const Color(0xFF1A1A1A)],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ).createShader(
@@ -936,7 +894,7 @@ class _LampScenePainter extends CustomPainter {
         Rect.fromLTWH(shadeCX - w * 0.185, shadeCY + h * 0.05, w * 0.37, 6),
         const Radius.circular(3),
       ),
-      Paint()..color = const Color(0xFF6D28D9),
+      Paint()..color = const Color(0xFF3A3A3A),
     );
     // shade top rim
     canvas.drawRRect(
@@ -944,40 +902,56 @@ class _LampScenePainter extends CustomPainter {
         Rect.fromLTWH(shadeCX - w * 0.075, shadeCY - h * 0.095, w * 0.15, 5),
         const Radius.circular(2),
       ),
-      Paint()..color = const Color(0xFF7C3AED),
+      Paint()..color = const Color(0xFF444444),
     );
 
-    // ── Bulb + glow ────────────────────────────────────────────────────────
+    // ── 🌞 BULB + GLOW — THE ONLY COLOR ELEMENT ───────────────────────────
     final bulbX = shadeCX + w * 0.01;
     final bulbY = shadeCY - h * 0.01;
 
-    // large soft halo
+    // large amber outer halo
     canvas.drawCircle(
       Offset(bulbX, bulbY),
-      w * 0.10,
+      w * 0.13,
       Paint()
         ..shader =
             RadialGradient(
               colors: [
-                const Color(0xFFFDE68A).withOpacity(0.45),
-                const Color(0xFFF59E0B).withOpacity(0.10),
+                const Color(0xFFF59E0B).withOpacity(0.20), // amber
+                const Color(0xFFFDE68A).withOpacity(0.08), // warm yellow
                 Colors.transparent,
               ],
               stops: const [0.0, 0.45, 1.0],
             ).createShader(
-              Rect.fromCircle(center: Offset(bulbX, bulbY), radius: w * 0.10),
+              Rect.fromCircle(center: Offset(bulbX, bulbY), radius: w * 0.13),
             ),
     );
-    // bright core
+    // warm yellow mid glow
+    canvas.drawCircle(
+      Offset(bulbX, bulbY),
+      w * 0.07,
+      Paint()
+        ..shader =
+            RadialGradient(
+              colors: [
+                const Color(0xFFFDE68A).withOpacity(0.55),
+                const Color(0xFFF59E0B).withOpacity(0.20),
+                Colors.transparent,
+              ],
+            ).createShader(
+              Rect.fromCircle(center: Offset(bulbX, bulbY), radius: w * 0.07),
+            ),
+    );
+    // bright white-yellow core
     canvas.drawCircle(
       Offset(bulbX, bulbY),
       w * 0.025,
       Paint()..color = const Color(0xFFFFFBEB),
     );
 
-    // light rays
+    // 🌞 light rays — warm yellow
     final rayPaint = Paint()
-      ..color = const Color(0xFFFDE68A).withOpacity(0.10)
+      ..color = const Color(0xFFFDE68A).withOpacity(0.12)
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
     final rays = [
@@ -995,11 +969,12 @@ class _LampScenePainter extends CustomPainter {
   bool shouldRepaint(_LampScenePainter _) => false;
 }
 
-// ─── DOT GRID PAINTER ─────────────────────────────────────────────────────
+// ─── DOT GRID PAINTER — B&W ───────────────────────────────────────────────
 class _DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF3D1D78).withOpacity(0.18);
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.04); // was purple-tinted
     const spacing = 36.0;
     for (double x = 0; x < size.width; x += spacing) {
       for (double y = 0; y < size.height; y += spacing) {
