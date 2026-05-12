@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:study_hub/features/user/dashboard/BLoC/dashboard_bloc.dart';
 import 'package:study_hub/features/user/dashboard/widgets/theme_helper.dart';
 import 'package:study_hub/features/user/dashboard/widgets/shared_widgets.dart';
@@ -33,17 +34,19 @@ class _ProfileTabState extends State<ProfileTab> {
   late TextEditingController _newPassCtrl;
 
   String get _initials {
-    if (_name.trim().isEmpty) return '?';
-    final parts = _name.trim().split(' ');
+    final source = _name.trim().isNotEmpty ? _name.trim() : _email.trim();
+    if (source.isEmpty) return '?';
+    final parts = source.split('@').first.split(' ');
     if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     return parts[0][0].toUpperCase();
   }
 
   // ── Pull my uploads from state ─────────────────────────────────────────────
-  // TODO (Backend Team): replace '' with real uid from FirebaseAuth
-  List<ResourceModel> get _myUploads =>
-      widget.state.resources.where((r) => r.uploadedBy == '').toList()
-        ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+  List<ResourceModel> get _myUploads {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return widget.state.resources.where((r) => r.uploadedBy == uid).toList()
+      ..sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+  }
 
   // Group uploads by month label e.g. "Apr 2026"
   Map<String, List<ResourceModel>> get _groupedUploads {
@@ -95,30 +98,25 @@ class _ProfileTabState extends State<ProfileTab> {
   void initState() {
     super.initState();
 
-    // ── TODO (Backend Team) ───────────────────────────────────────────────────
-    // final user = FirebaseAuth.instance.currentUser;
-    // _name = user?.displayName ?? '';
-    // _email = user?.email ?? '';
-    // FirebaseFirestore.instance.collection('users').doc(user?.uid).get()
-    //     .then((doc) { if (doc.exists && mounted) setState(() => _bio = doc['bio'] ?? ''); });
-    // final uid = user?.uid ?? '';
-    // Future.wait([
-    //   FirebaseFirestore.instance.collection('users/$uid/starred').count().get(),
-    //   FirebaseFirestore.instance.collection('users/$uid/pinned').count().get(),
-    //   FirebaseFirestore.instance.collection('users/$uid/done').count().get(),
-    //   FirebaseFirestore.instance.collection('resources')
-    //       .where('uploadedBy', isEqualTo: uid).count().get(),
-    // ]).then((results) { if (mounted) setState(() {
-    //   _starred = results[0].count ?? 0; _pinned = results[1].count ?? 0;
-    //   _done = results[2].count ?? 0; _uploaded = results[3].count ?? 0;
-    // }); });
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Pull real user from FirebaseAuth ──────────────────────────────────────
+    final user = FirebaseAuth.instance.currentUser;
+    _name  = user?.displayName ?? '';
+    _email = user?.email ?? '';
+    _bio   = ''; // TODO: load from Firestore users/{uid}.bio
 
-    _nameCtrl = TextEditingController(text: _name);
-    _emailCtrl = TextEditingController(text: _email);
-    _bioCtrl = TextEditingController(text: _bio);
+    // ── Compute stats from state ──────────────────────────────────────────────
+    final uid = user?.uid ?? '';
+    final resources = widget.state.resources;
+    _uploaded = resources.where((r) => r.uploadedBy == uid).length;
+    _starred  = resources.where((r) => r.isStarred).length;
+    _pinned   = resources.where((r) => r.isPinned).length;
+    _done     = resources.where((r) => r.isDone).length;
+
+    _nameCtrl    = TextEditingController(text: _name);
+    _emailCtrl   = TextEditingController(text: _email);
+    _bioCtrl     = TextEditingController(text: _bio);
     _currPassCtrl = TextEditingController();
-    _newPassCtrl = TextEditingController();
+    _newPassCtrl  = TextEditingController();
   }
 
   @override
@@ -146,17 +144,28 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _save() async {
     setState(() => _isSaving = true);
-    // ── TODO (Backend Team): replace with real Firebase save ─────────────────
-    await Future.delayed(const Duration(milliseconds: 800));
-    setState(() {
-      _name = _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : _name;
-      _email = _emailCtrl.text.trim().isNotEmpty
-          ? _emailCtrl.text.trim()
-          : _email;
-      _bio = _bioCtrl.text.trim();
-      _isEditing = false;
-      _isSaving = false;
-    });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        if (_nameCtrl.text.trim().isNotEmpty) {
+          await user.updateDisplayName(_nameCtrl.text.trim());
+        }
+        if (_emailCtrl.text.trim().isNotEmpty &&
+            _emailCtrl.text.trim() != user.email) {
+          await user.verifyBeforeUpdateEmail(_emailCtrl.text.trim());
+        }
+        // TODO: save _bioCtrl.text to Firestore users/{uid}.bio
+      }
+      setState(() {
+        _name  = _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : _name;
+        _email = _emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : _email;
+        _bio   = _bioCtrl.text.trim();
+        _isEditing = false;
+        _isSaving  = false;
+      });
+    } catch (e) {
+      setState(() => _isSaving = false);
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -476,7 +485,11 @@ class _ProfileTabState extends State<ProfileTab> {
 
         // ── Name ────────────────────────────────────────────────────────────
         Text(
-          _name.isEmpty ? 'Not signed in' : _name,
+          _name.isNotEmpty
+          ? _name
+          : _email.isNotEmpty
+              ? _email.split('@').first
+              : 'Anonymous',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w700,
