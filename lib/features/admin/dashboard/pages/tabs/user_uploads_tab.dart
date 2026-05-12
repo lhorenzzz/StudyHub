@@ -494,7 +494,7 @@ class _UserUploadsTabState extends State<UserUploadsTab> {
                 value: _formatDate(r.uploadedAt),
                 t: t,
               ),
-              AdminModalRow(label: 'Uploaded by', value: r.uploadedBy, t: t),
+              AdminModalRow(label: 'Uploaded by', value: r.uploadedByName, t: t),
             ],
           ),
         ),
