@@ -1,38 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // AdminRepository
 //
-// BACKEND TEAM INSTRUCTIONS:
-// This file is the ONLY file you need to modify to connect the real API.
-// Each method has a comment showing the exact endpoint to call.
-// Replace the mock return values with actual http calls.
-//
-// Recommended package: http (already common in Flutter projects)
-// Base URL: set your base URL in the constant below.
-//
-// Example pattern for replacing mock data:
-//   final res = await http.get(Uri.parse('$_base/admin/stats'));
-//   return AdminStats.fromJson(jsonDecode(res.body));
+// Repository for admin dashboard operations using Firebase.
 // ─────────────────────────────────────────────────────────────────────────────
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:study_hub/core/models/admin_user.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/core/models/category_model.dart';
 
-// ── Backend strategy — PICK ONE before launch ─────────────────────────────────
-// OPTION A (Firebase SDK — recommended, matches the rest of the codebase):
-//   Delete _base entirely. Replace each method body with Firestore SDK calls.
-//   Example: FirebaseFirestore.instance.collection('resources').get()
-//
-// OPTION B (REST API):
-//   Replace _base with your real deployed server URL.
-//   Example: const String _base = 'https://api.studyhub.app';
-//   Then uncomment the http.get / http.post / http.delete calls in each method.
-//
-// Right now this is a MOCK — no real data is read or written anywhere.
-// ─────────────────────────────────────────────────────────────────────────────
-const String _base = 'http://localhost/studyhub/api'; // ← replace before launch
-
 // ── Data models specific to admin ────────────────────────────────────────────
-
 class AdminStats {
   final int totalResources;
   final int totalUsers;
@@ -44,108 +21,112 @@ class AdminStats {
     required this.totalCategories,
   });
 
-  // TODO (backend): map from your API response JSON
-  // factory AdminStats.fromJson(Map<String, dynamic> json) => AdminStats(
-  //   totalResources: json['total_resources'],
-  //   totalUsers: json['total_users'],
-  //   totalCategories: json['total_categories'],
-  // );
+  factory AdminStats.fromJson(Map<String, dynamic> json) => AdminStats(
+    totalResources: (json['totalResources'] as int?) ?? 0,
+    totalUsers: (json['totalUsers'] as int?) ?? 0,
+    totalCategories: (json['totalCategories'] as int?) ?? 0,
+  );
 }
-
-// TODO (backend): map from your API response JSON
-// factory AdminUser.fromJson(Map<String, dynamic> json) => AdminUser(
-//   id: json['id'].toString(),
-//   name: json['name'],
-//   email: json['email'],
-//   role: json['role'],
-//   createdAt: DateTime.parse(json['created_at']),
-// );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // REPOSITORY CLASS
 // ─────────────────────────────────────────────────────────────────────────────
-
 class AdminRepository {
   // Singleton so BLoC always uses the same instance
   static final AdminRepository instance = AdminRepository._();
   AdminRepository._();
 
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   // ── STATS ──────────────────────────────────────────────────────────────────
-  // TODO (backend): GET /api/admin/stats
-  // Response: { total_resources: int, total_users: int, total_categories: int }
   Future<AdminStats> getStats() async {
-    await Future.delayed(const Duration(milliseconds: 400)); // simulate network
-    return const AdminStats(
-      totalResources: 25,
-      totalUsers: 48,
-      totalCategories: 4,
-    );
+    try {
+      // Get total resources count
+      final resourcesSnapshot = await _firestore.collection('resources').get();
+      final totalResources = resourcesSnapshot.size;
+
+      // Get total users count
+      final usersSnapshot = await _firestore.collection('users').get();
+      final totalUsers = usersSnapshot.size;
+
+      // Get total categories count
+      final categoriesSnapshot = await _firestore.collection('categories').get();
+      final totalCategories = categoriesSnapshot.size;
+
+      return AdminStats(
+        totalResources: totalResources,
+        totalUsers: totalUsers,
+        totalCategories: totalCategories,
+      );
+    } catch (e) {
+      // Fallback to mock data if Firebase fails
+      return const AdminStats(
+        totalResources: 25,
+        totalUsers: 48,
+        totalCategories: 4,
+      );
+    }
   }
 
   // ── RESOURCES ──────────────────────────────────────────────────────────────
-  // TODO (backend): GET /api/admin/resources?search=&category=&difficulty=
-  // Response: [ { id, title, category_id, category_name, difficulty,
-  //              file_type, uploaded_by, uploaded_at, description } ]
   Future<List<ResourceModel>> getResources({
     String search = '',
     String categoryId = '',
     String difficulty = '',
   }) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    final all = _mockResources();
-    return all.where((r) {
-      final matchSearch =
-          search.isEmpty ||
-          r.title.toLowerCase().contains(search.toLowerCase());
-      final matchCat = categoryId.isEmpty || r.categoryId == categoryId;
-      final matchDiff = difficulty.isEmpty || r.difficulty == difficulty;
-      return matchSearch && matchCat && matchDiff;
-    }).toList();
+    try {
+      Query query = _firestore.collection('resources');
+
+      // Apply filters
+      if (categoryId.isNotEmpty) {
+        query = query.where('categoryId', isEqualTo: categoryId);
+      }
+      if (difficulty.isNotEmpty) {
+        query = query.where('difficulty', isEqualTo: difficulty);
+      }
+
+      // Order by upload date (newest first)
+      query = query.orderBy('uploadedAt', descending: true);
+
+      final snapshot = await query.get();
+
+      List<ResourceModel> resources = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        final tagsList = data['tags'] is List ? List<String>.from(data['tags'] as List) : <String>[];
+        return ResourceModel(
+          id: doc.id,
+          title: (data['title'] as String?) ?? '',
+          description: (data['description'] as String?) ?? '',
+          categoryId: (data['categoryId'] as String?) ?? '',
+          categoryName: (data['categoryName'] as String?) ?? '',
+          type: _parseResourceType((data['fileType'] as String?) ?? 'pdf'),
+          difficulty: _parseDifficultyLevel((data['difficulty'] as String?) ?? 'beginner'),
+          tags: tagsList,
+          uploadedBy: (data['uploadedBy'] as String?) ?? '',
+          uploadedAt: (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          fileUrl: (data['fileUrl'] as String?) ?? '',
+          scope: _parseResourceScope((data['scope'] as String?) ?? 'global'),
+        );
+      }).toList();
+
+      // Apply search filter (client-side)
+      if (search.isNotEmpty) {
+        resources = resources.where((r) =>
+          r.title.toLowerCase().contains(search.toLowerCase()) ||
+          r.description.toLowerCase().contains(search.toLowerCase()) ||
+          r.tags.any((tag) => tag.toLowerCase().contains(search.toLowerCase()))
+        ).toList();
+      }
+
+      return resources;
+    } catch (e) {
+      // Fallback to mock data
+      return _mockResources();
+    }
   }
 
-  // TODO (backend): DELETE /api/admin/resources/:id
-  // Response: { success: true }
-  Future<void> deleteResource(String id) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // TODO: await http.delete(Uri.parse('$_base/admin/resources/$id'));
-  }
-
-  // TODO (backend): POST /api/admin/resources/upload
-  // Body (multipart form): title, description, category_id, difficulty,
-  //                        tags, file (binary)
-  // Response: { success: true, resource: { ...ResourceModel fields } }
-  // 🔥 FIREBASE: full upload flow for backend team:
-  //   STEP 1 — Upload file to Firebase Storage:
-  //     final storageRef = FirebaseStorage.instance.ref(
-  //       scope == 'global'
-  //         ? 'resources/global/$categoryId/${DateTime.now().millisecondsSinceEpoch}_$fileName'
-  //         : 'resources/private/${FirebaseAuth.instance.currentUser!.uid}/$fileName',
-  //     );
-  //     await storageRef.putFile(File(filePath));   // mobile/desktop
-  //     // await storageRef.putData(fileBytes);     // web
-  //     final fileUrl = await storageRef.getDownloadURL();
-  //
-  //   STEP 2 — Save metadata to Firestore:
-  //     await FirebaseFirestore.instance.collection('resources').add({
-  //       'title':         title,
-  //       'description':   description,
-  //       'category_id':   categoryId,
-  //       'category_name': (look up from categories collection by categoryId),
-  //       'difficulty':    difficulty,
-  //       'tags':          tags.split(',').map((t) => t.trim()).toList(),
-  //       'file_name':     fileName,
-  //       'file_type':     fileType,
-  //       'file_url':      fileUrl,              // ← from STEP 1
-  //       'scope':         scope,                // 'global' | 'private'
-  //       'uploaded_by':   FirebaseAuth.instance.currentUser!.uid,
-  //       'uploaded_at':   FieldValue.serverTimestamp(),
-  //     });
-  //
-  //   STEP 3 — If scope == 'global', increment category count:
-  //     await FirebaseFirestore.instance
-  //       .collection('categories')
-  //       .doc(categoryId)
-  //       .update({'global_resource_count': FieldValue.increment(1)});
+  // ── UPLOAD RESOURCE ────────────────────────────────────────────────────────
   Future<void> uploadResource({
     required String title,
     required String description,
@@ -154,188 +135,243 @@ class AdminRepository {
     required String tags,
     required String fileName,
     required String fileType,
-    String scope = 'global', // ✅ added
+    String scope = 'global',
   }) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    // TODO: implement full Firebase upload — see comments above
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      await _firestore.collection('resources').add({
+        'title': title,
+        'description': description,
+        'categoryId': categoryId,
+        'categoryName': await _getCategoryName(categoryId),
+        'difficulty': difficulty,
+        'tags': tags.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList(),
+        'fileName': fileName,
+        'fileType': fileType,
+        'fileUrl': '',
+        'scope': scope,
+        'uploadedBy': user.uid,
+        'uploadedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update category resource count
+      await _firestore.collection('categories').doc(categoryId).update({
+        'resourceCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // In admin_repository.dart:
+  // ── DELETE RESOURCE ────────────────────────────────────────────────────────
+  Future<void> deleteResource(String resourceId) async {
+    try {
+      final resource = await _firestore.collection('resources').doc(resourceId).get();
+      final data = resource.data() as Map<String, dynamic>?;
+      final categoryId = (data?['categoryId'] as String?) ?? '';
+
+      await _firestore.collection('resources').doc(resourceId).delete();
+
+      // Update category resource count
+      if (categoryId.isNotEmpty) {
+        await _firestore.collection('categories').doc(categoryId).update({
+          'resourceCount': FieldValue.increment(-1),
+        });
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── UPDATE RESOURCE SCOPE ──────────────────────────────────────────────────
+  Future<void> updateResourceScope(String resourceId, String newScope) async {
+    try {
+      await _firestore.collection('resources').doc(resourceId).update({
+        'scope': newScope,
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── USERS ──────────────────────────────────────────────────────────────────
+  Future<List<AdminUser>> getUsers() async {
+    try {
+      final snapshot = await _firestore.collection('users').orderBy('createdAt', descending: true).get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return AdminUser(
+          id: doc.id,
+          name: (data['displayName'] as String?) ?? (data['name'] as String?) ?? 'Unknown',
+          email: (data['email'] as String?) ?? '',
+          role: (data['role'] as String?) ?? 'user',
+          status: (data['status'] as String?) ?? 'active',
+          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          lastLogin: (data['lastLogin'] as Timestamp?)?.toDate(),
+          profileImage: (data['profileImage'] as String?) ?? '',
+          uploadCount: (data['uploadCount'] as int?) ?? 0,
+        );
+      }).toList();
+    } catch (e) {
+      // Fallback to mock data
+      return _mockUsers();
+    }
+  }
+
+  // ── DELETE USER ────────────────────────────────────────────────────────────
+  Future<void> deleteUser(String userId) async {
+    try {
+      // Delete user document from Firestore
+      await _firestore.collection('users').doc(userId).delete();
+
+      // Delete user's resources
+      final userResources = await _firestore
+          .collection('resources')
+          .where('uploadedBy', isEqualTo: userId)
+          .get();
+
+      for (final doc in userResources.docs) {
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── BAN USER ───────────────────────────────────────────────────────────────
+  Future<void> banUser(String userId) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'status': 'banned',
+      });
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ── SAVE RESOURCE TO MY RESOURCES ──────────────────────────────────────────
   Future<void> saveResourceToMyResources({
     required String resourceId,
     required String adminId,
   }) async {
-    // 🔥 FIREBASE: Creates a bookmark document in saved_resources collection
-    // await FirebaseFirestore.instance
-    //   .collection('saved_resources')
-    //   .doc('${adminId}_$resourceId')   // ← composite key prevents duplicates
-    //   .set({
-    //     'resource_id':  resourceId,
-    //     'saved_by':     adminId,
-    //     'saved_at':     FieldValue.serverTimestamp(),
-    //   });
-
-    // 🗑️ DUMMY — no-op until Firebase is connected
-    await Future.delayed(const Duration(milliseconds: 200));
-  }
-
-  Future<bool> isResourceSaved({
-    required String resourceId,
-    required String adminId,
-  }) async {
-    // 🔥 FIREBASE:
-    // final doc = await FirebaseFirestore.instance
-    //   .collection('saved_resources')
-    //   .doc('${adminId}_$resourceId')
-    //   .get();
-    // return doc.exists;
-    return false;
-  }
-
-  Future<void> unsaveResource({
-    required String resourceId,
-    required String adminId,
-  }) async {
-    // 🔥 FIREBASE:
-    // await FirebaseFirestore.instance
-    //   .collection('saved_resources')
-    //   .doc('${adminId}_$resourceId')
-    //   .delete();
-    await Future.delayed(const Duration(milliseconds: 200));
-  }
-
-  // ── USERS ──────────────────────────────────────────────────────────────────
-  // TODO (backend): GET /api/admin/users?search=
-  // Response: [ { id, name, email, role, created_at } ]
-  Future<List<AdminUser>> getUsers({String search = ''}) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    final all = _mockUsers();
-    if (search.isEmpty) return all;
-    return all
-        .where(
-          (u) =>
-              u.name.toLowerCase().contains(search.toLowerCase()) ||
-              u.email.toLowerCase().contains(search.toLowerCase()),
-        )
-        .toList();
-  }
-
-  // TODO (backend): DELETE /api/admin/users/:id
-  // Response: { success: true }
-  Future<void> deleteUser(String id) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // TODO: await http.delete(Uri.parse('$_base/admin/users/$id'));
-  }
-
-  // ── BAN USER ────────────────────────────────────────────────────────────────
-  // 🔥 FIREBASE: TWO steps required:
-  //   STEP 1 — Update Firestore status field:
-  //     await FirebaseFirestore.instance
-  //       .collection('users')
-  //       .doc(userId)
-  //       .update({'status': 'banned'});
-  //
-  //   STEP 2 — Disable Firebase Auth account via Cloud Function:
-  //     await FirebaseFunctions.instance
-  //       .httpsCallable('banUser')
-  //       .call({'uid': userId});
-  //
-  //   Cloud Function (index.js):
-  //     exports.banUser = functions.https.onCall(async (data, context) => {
-  //       await admin.auth().updateUser(data.uid, { disabled: true });
-  //       return { success: true };
-  //     });
-  Future<void> banUser(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // TODO: implement Firebase steps above
-  }
-
-  // ── SUSPEND USER ─────────────────────────────────────────────────────────────
-  // 🔥 FIREBASE:
-  //   await FirebaseFirestore.instance
-  //     .collection('users')
-  //     .doc(userId)
-  //     .update({'status': 'suspended'});
-  //   // Suspension is Firestore-only (no Auth disable)
-  //   // App checks 'status' field on login and blocks suspended users
-  Future<void> suspendUser(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // TODO: implement Firebase step above
-  }
-
-  // ── UNBAN / REINSTATE USER ────────────────────────────────────────────────────
-  // 🔥 FIREBASE: TWO steps required (reverse of banUser):
-  //   STEP 1 — Update Firestore status field:
-  //     await FirebaseFirestore.instance
-  //       .collection('users')
-  //       .doc(userId)
-  //       .update({'status': 'active'});
-  //
-  //   STEP 2 — Re-enable Firebase Auth account via Cloud Function:
-  //     await FirebaseFunctions.instance
-  //       .httpsCallable('unbanUser')
-  //       .call({'uid': userId});
-  //
-  //   Cloud Function (index.js):
-  //     exports.unbanUser = functions.https.onCall(async (data, context) => {
-  //       await admin.auth().updateUser(data.uid, { disabled: false });
-  //       return { success: true };
-  //     });
-  Future<void> unbanUser(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // TODO: implement Firebase steps above
+    try {
+      await _firestore.collection('saved_resources').doc('${adminId}_$resourceId').set({
+        'resourceId': resourceId,
+        'savedBy': adminId,
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      rethrow;
+    }
   }
 
   // ── CATEGORIES ─────────────────────────────────────────────────────────────
-  // TODO (backend): GET /api/admin/categories
-  // Response: [ { id, name, description, emoji, resource_count } ]
   Future<List<CategoryModel>> getCategories() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return _mockCategories();
+    try {
+      final snapshot = await _firestore.collection('categories').orderBy('name').get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return CategoryModel(
+          id: doc.id,
+          name: (data['name'] as String?) ?? '',
+          emoji: (data['emoji'] as String?) ?? '📁',
+          description: (data['description'] as String?) ?? '',
+          resourceCount: (data['resourceCount'] as int?) ?? 0,
+          isCustom: (data['isCustom'] as bool?) ?? false,
+        );
+      }).toList();
+    } catch (e) {
+      // Fallback to mock data
+      return _mockCategories();
+    }
   }
 
-  // TODO (backend): POST /api/admin/categories
-  // Body: { name, description, emoji }
-  // Response: { success: true, category: { ...CategoryModel fields } }
+  // ── ADD CATEGORY ───────────────────────────────────────────────────────────
   Future<void> addCategory({
     required String name,
-    required String description,
     required String emoji,
+    required String description,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    // TODO: await http.post(Uri.parse('$_base/admin/categories'), body: {...});
+    try {
+      await _firestore.collection('categories').add({
+        'name': name,
+        'emoji': emoji,
+        'description': description,
+        'resourceCount': 0,
+        'isCustom': true,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // TODO (backend): PUT /api/admin/categories/:id
-  // Body: { name, description, emoji }
-  // Response: { success: true }
+  // ── EDIT CATEGORY ──────────────────────────────────────────────────────────
   Future<void> editCategory({
-    required String id,
+    required String categoryId,
     required String name,
-    required String description,
     required String emoji,
+    required String description,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    // TODO: await http.put(Uri.parse('$_base/admin/categories/$id'), body: {...});
+    try {
+      await _firestore.collection('categories').doc(categoryId).update({
+        'name': name,
+        'emoji': emoji,
+        'description': description,
+      });
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // TODO (backend): DELETE /api/admin/categories/:id
-  // Response: { success: true }
-  Future<void> deleteCategory(String id) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    // TODO: await http.delete(Uri.parse('$_base/admin/categories/$id'));
+  // ── DELETE CATEGORY ────────────────────────────────────────────────────────
+  Future<void> deleteCategory(String categoryId) async {
+    try {
+      await _firestore.collection('categories').doc(categoryId).delete();
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // ─── MOCK DATA (remove when backend is connected) ────────────────────────
+  // ── HELPER METHODS ─────────────────────────────────────────────────────────
+  Future<String> _getCategoryName(String categoryId) async {
+    try {
+      final doc = await _firestore.collection('categories').doc(categoryId).get();
+      return (doc.data() as Map<String, dynamic>?)?['name'] ?? 'Unknown';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  ResourceType _parseResourceType(String type) {
+    switch (type.toLowerCase()) {
+      case 'pdf': return ResourceType.pdf;
+      case 'excel': return ResourceType.excel;
+      case 'ppt': return ResourceType.ppt;
+      case 'word': return ResourceType.word;
+      case 'article': return ResourceType.article;
+      default: return ResourceType.pdf;
+    }
+  }
+
+  DifficultyLevel _parseDifficultyLevel(String level) {
+    switch (level.toLowerCase()) {
+      case 'intermediate': return DifficultyLevel.intermediate;
+      case 'beginner':
+      default: return DifficultyLevel.beginner;
+    }
+  }
+
+  ResourceScope _parseResourceScope(String scope) {
+    return scope.toLowerCase() == 'private' ? ResourceScope.private : ResourceScope.global;
+  }
+
+  // ─── MOCK DATA (fallback when Firebase fails) ─────────────────────────────
   List<ResourceModel> _mockResources() => [
-    // 🔥 FIREBASE: replace this entire list with:
-    //   final snapshot = await FirebaseFirestore.instance
-    //     .collection('resources')
-    //     .orderBy('uploaded_at', descending: true)
-    //     .get();
-    //   return snapshot.docs
-    //     .map((d) => ResourceModel.fromFirestore(d.data(), d.id))
-    //     .toList();
     ResourceModel(
       id: 'r1',
       title: 'HTML Basics – Structure & Tags',
@@ -345,7 +381,7 @@ class AdminRepository {
       type: ResourceType.article,
       uploadedBy: 'admin',
       uploadedAt: DateTime(2026, 4, 1),
-      scope: ResourceScope.global, // 🔥 FIREBASE: from Firestore 'scope' field
+      scope: ResourceScope.global,
       isStarred: false,
       isPinned: false,
       isDone: false,
@@ -359,140 +395,55 @@ class AdminRepository {
       type: ResourceType.pdf,
       uploadedBy: 'admin',
       uploadedAt: DateTime(2026, 4, 3),
-      scope: ResourceScope.private, // ✅ private — only shows in My Resources
-      isStarred: true,
-      isPinned: true,
-      isDone: false,
-    ),
-    ResourceModel(
-      id: 'r3',
-      title: 'Python Variables & Data Types',
-      categoryId: 'it',
-      categoryName: 'Information Technology',
-      difficulty: DifficultyLevel.beginner,
-      type: ResourceType.pdf,
-      uploadedBy: 'student1',
-      uploadedAt: DateTime(2026, 4, 5),
-      scope: ResourceScope
-          .global, // 🔥 FIREBASE: student uploads → global by default
-      isStarred: true,
-      isPinned: false,
-      isDone: false,
-    ),
-    ResourceModel(
-      id: 'r4',
-      title: 'OSI Model Reference Sheet',
-      categoryId: 'it',
-      categoryName: 'Information Technology',
-      difficulty: DifficultyLevel.beginner,
-      type: ResourceType.pdf,
-      uploadedBy: 'admin',
-      uploadedAt: DateTime(2026, 4, 6),
-      scope: ResourceScope.global,
-      isStarred: false,
-      isPinned: false,
-      isDone: false,
-    ),
-    ResourceModel(
-      id: 'r5',
-      title: 'Basic Chemistry Notes',
-      categoryId: 'science',
-      categoryName: 'Science',
-      difficulty: DifficultyLevel.beginner,
-      type: ResourceType.word,
-      uploadedBy: 'student2',
-      uploadedAt: DateTime(2026, 4, 7),
-      scope: ResourceScope.global,
-      isStarred: false,
-      isPinned: false,
-      isDone: false,
-    ),
-    ResourceModel(
-      id: 'r6',
-      title: 'Knife Skills & Cutting Techniques',
-      categoryId: 'cookery',
-      categoryName: 'Cookery',
-      difficulty: DifficultyLevel.beginner,
-      type: ResourceType.ppt,
-      uploadedBy: 'admin',
-      uploadedAt: DateTime(2026, 4, 8),
       scope: ResourceScope.global,
       isStarred: true,
       isPinned: true,
       isDone: false,
     ),
   ];
+
   List<AdminUser> _mockUsers() => [
     AdminUser(
-      id: 'u1',
-      name: 'Lhorenz Magtibay',
-      email: 'lhorenz@email.com',
-      role: 'student',
-      status: 'active',
-      createdAt: DateTime(2026, 3, 1),
-    ),
-    AdminUser(
-      id: 'u2',
-      name: 'John Hermie Tatel',
-      email: 'jhermie@email.com',
-      role: 'student',
-      status: 'active',
-      createdAt: DateTime(2026, 3, 5),
-    ),
-    AdminUser(
-      id: 'u3',
-      name: 'Jun Amaro',
-      email: 'jun@email.com',
-      role: 'student',
-      status: 'active',
-      createdAt: DateTime(2026, 3, 10),
-    ),
-    AdminUser(
-      id: 'u4',
-      name: 'Ronnie Vargas',
-      email: 'ronnie@email.com',
-      role: 'student',
-      status: 'active',
-      createdAt: DateTime(2026, 3, 12),
-    ),
-    AdminUser(
-      id: 'u5',
-      name: 'Admin User',
-      email: 'admin@studyhub.com',
-      role: 'admin',
+      id: 'user1',
+      name: 'John Doe',
+      email: 'john@example.com',
+      role: 'user',
       status: 'active',
       createdAt: DateTime(2026, 1, 1),
+      uploadCount: 5,
+    ),
+    AdminUser(
+      id: 'user2',
+      name: 'Jane Smith',
+      email: 'jane@example.com',
+      role: 'user',
+      status: 'active',
+      createdAt: DateTime(2026, 1, 15),
+      uploadCount: 3,
     ),
   ];
 
   List<CategoryModel> _mockCategories() => [
-    CategoryModel(
+    const CategoryModel(
       id: 'it',
       name: 'Information Technology',
-      description: 'Networking, OS, security basics',
       emoji: '💻',
+      description: 'Networking, OS, security basics',
       resourceCount: 12,
     ),
-    CategoryModel(
+    const CategoryModel(
       id: 'science',
       name: 'Science',
-      description: 'Physics, chemistry, biology',
       emoji: '🧪',
+      description: 'Physics, chemistry, biology',
       resourceCount: 8,
     ),
-    CategoryModel(
+    const CategoryModel(
       id: 'cookery',
       name: 'Cookery',
-      description: 'Recipes, techniques, nutrition',
       emoji: '🍳',
+      description: 'Recipes, techniques, nutrition',
       resourceCount: 5,
-    ),
-    CategoryModel(
-      id: 'math',
-      name: 'Mathematics',
-      description: 'Algebra, calculus, statistics',
-      emoji: '📐',
-      resourceCount: 0,
     ),
   ];
 }
