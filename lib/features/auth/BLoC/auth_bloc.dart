@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:equatable/equatable.dart';
 
 // These two files are "parts" of this file — they share the same library
@@ -33,23 +34,47 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Show loading spinner
     emit(AuthLoading());
 
-    // Simulate network delay — replace this with real Firebase/API call later
-    await Future.delayed(const Duration(seconds: 1));
-
-    if (event.email.isEmpty || event.password.isEmpty) {
-      emit(const AuthFailure(error: 'Please fill in all fields.'));
-    } else {
-      final isAdmin = event.email == 'admin@studyhub.com';
-      emit(
-        AuthSuccess(
-          message: 'Login successful!',
-          role: isAdmin ? 'admin' : 'student',
-        ),
+    try {
+      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: event.email,
+        password: event.password,
       );
+
+      final user = userCredential.user;
+      if (user != null) {
+        final isAdmin = event.email == 'admin@studyhub.com';
+        emit(
+          AuthSuccess(
+            message: 'Login successful!',
+            role: isAdmin ? 'admin' : 'student',
+            uid: user.uid,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'user-not-found':
+          errorMessage = 'No user found with this email.';
+          break;
+        case 'wrong-password':
+          errorMessage = 'Wrong password provided.';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Invalid email address.';
+          break;
+        case 'user-disabled':
+          errorMessage = 'This user account has been disabled.';
+          break;
+        default:
+          errorMessage = 'Login failed: ${e.message}';
+      }
+      emit(AuthFailure(error: errorMessage));
+    } catch (e) {
+      emit(AuthFailure(error: 'An unexpected error occurred.'));
     }
   }
 
-  // Handles registration logic
   // Handles registration logic
   Future<void> _onRegister(
     RegisterSubmitted event,
@@ -58,33 +83,65 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     // Show loading spinner
     emit(AuthLoading());
 
-    // Simulate network delay — replace with real API call later
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: event.email,
+        password: event.password,
+      );
 
-    // Basic validation
-    if (event.name.isEmpty || event.email.isEmpty || event.password.isEmpty) {
-      emit(const AuthFailure(error: 'Please fill in all fields.'));
-    } else {
-      // TODO: Replace with real registration (Firebase, REST API, etc.)
-      emit(const AuthSuccess(message: 'Account created!'));
+      final user = userCredential.user;
+      if (user != null) {
+        // Update display name
+        await user.updateDisplayName(event.name);
+        await user.reload();
+
+        emit(const AuthSuccess(message: 'Account created successfully!'));
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage;
+      switch (e.code) {
+        case 'weak-password':
+          errorMessage = 'The password provided is too weak.';
+          break;
+        case 'email-already-in-use':
+          errorMessage = 'An account already exists with this email.';
+          break;
+        case 'invalid-email':
+          errorMessage = 'Invalid email address.';
+          break;
+        default:
+          errorMessage = 'Registration failed: ${e.message}';
+      }
+      emit(AuthFailure(error: errorMessage));
+    } catch (e) {
+      emit(AuthFailure(error: 'An unexpected error occurred.'));
     }
   }
 
   // Handles logout — clears state back to login form
-  // TODO (Firebase): replace body with FirebaseAuth.instance.signOut()
   Future<void> _onLogout(LogoutRequested event, Emitter<AuthState> emit) async {
+    await FirebaseAuth.instance.signOut();
     _isLogin = true;
     emit(const AuthInitial());
   }
 
   // Checks on app start if a user session already exists
-  // TODO (Firebase): replace body with FirebaseAuth.instance.currentUser check
   Future<void> _onAuthCheck(
     AuthCheckRequested event,
     Emitter<AuthState> emit,
   ) async {
-    // Placeholder — always goes to login for now
-    // Real version: if (FirebaseAuth.instance.currentUser != null) emit AuthSuccess
-    emit(const AuthInitial());
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final isAdmin = user.email == 'admin@studyhub.com';
+      emit(
+        AuthSuccess(
+          message: 'Welcome back!',
+          role: isAdmin ? 'admin' : 'student',
+          uid: user.uid,
+        ),
+      );
+    } else {
+      emit(const AuthInitial());
+    }
   }
 }
