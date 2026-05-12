@@ -555,9 +555,9 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
           isDarkMode: true,
           activeTab: AdminTab.overview,
           savedResourceIds: const [],
-          totalGlobalResources: resources.where((r) => r.isGlobal).length,
-          totalUsers: users.length,
-          totalCategories: categories.length,
+          totalGlobalResources: stats.totalResources,
+          totalUsers: stats.totalUsers,
+          totalCategories: stats.totalCategories,
           resources: resources,
           filteredResources: resources,
           resourceSearch: '',
@@ -924,7 +924,7 @@ class AdminBloc extends Bloc<AdminEvent, AdminState> {
       //       'emoji':       e.emoji,
       //     });
       await _repo.editCategory(
-        id: e.id,
+        categoryId: e.id,  
         name: e.name,
         description: e.description,
         emoji: e.emoji,
