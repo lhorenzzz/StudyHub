@@ -6,7 +6,7 @@ import 'package:study_hub/features/user/dashboard/pages/user_dashboard_page.dart
 import 'package:study_hub/core/theme/app_theme.dart';
 
 final appRouter = GoRouter(
-  initialLocation: '/admin',
+  initialLocation: '/',
   routes: [
     GoRoute(path: '/', builder: (context, state) => const AuthPage()),
     GoRoute(
