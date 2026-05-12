@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:study_hub/features/auth/BLoC/auth_bloc.dart';
 
@@ -442,7 +443,7 @@ class _AuthPageState extends State<AuthPage>
                         );
                         return;
                       }
-                      // TODO (Firebase): FirebaseAuth.instance.sendPasswordResetEmail(email: _emailCtrl.text.trim())
+                      FirebaseAuth.instance.sendPasswordResetEmail(email: _emailCtrl.text.trim());
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           backgroundColor: const Color(0xFF1C1C1C),
