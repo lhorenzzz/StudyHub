@@ -512,11 +512,12 @@ class _FilePickerBoxState extends State<FilePickerBox> {
 // ─── CategoryDropField ───────────────────────────────────────────────────────
 class CategoryDropField extends StatelessWidget {
   final String hint;
-  final Map<String, String>? value;
+  final String? value;
   final List<Map<String, String>> items;
   final String Function(Map<String, String>) label;
   final UserTheme t;
   final ValueChanged<Map<String, String>?> onChanged;
+
   const CategoryDropField({
     super.key,
     required this.hint,
@@ -536,8 +537,8 @@ class CategoryDropField extends StatelessWidget {
         border: Border.all(color: t.border2),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: DropdownButton<Map<String, String>>(
-        value: value?.isEmpty == true ? null : value,
+      child: DropdownButton<String>(
+        value: value,
         isExpanded: true,
         underline: const SizedBox(),
         dropdownColor: t.surface,
@@ -546,8 +547,8 @@ class CategoryDropField extends StatelessWidget {
         icon: Icon(Icons.keyboard_arrow_down, size: 18, color: t.textMuted),
         items: items
             .map(
-              (item) => DropdownMenuItem(
-                value: item,
+              (item) => DropdownMenuItem<String>(
+                value: item['id'],
                 child: Text(
                   label(item),
                   style: TextStyle(fontSize: 13, color: t.text),
@@ -555,7 +556,14 @@ class CategoryDropField extends StatelessWidget {
               ),
             )
             .toList(),
-        onChanged: onChanged,
+        onChanged: (selectedId) {
+          if (selectedId == null) {
+            onChanged(null);
+            return;
+          }
+          final match = items.firstWhere((c) => c['id'] == selectedId);
+          onChanged(match);
+        },
       ),
     );
   }
