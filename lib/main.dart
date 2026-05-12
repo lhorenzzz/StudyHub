@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:study_hub/firebase_options.dart';
 import 'package:study_hub/app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // TODO (Firebase): uncomment these two lines when Firebase is connected:
-  // await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const StudyHubApp());
 }
