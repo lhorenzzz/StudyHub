@@ -38,6 +38,9 @@ class AdminUser {
   final String role; // 'admin' | 'student' | 'moderator'
   final String status; // 'active' | 'banned' | 'suspended'
   final DateTime createdAt;
+  final DateTime? lastLogin;
+  final String profileImage;
+  final int uploadCount;
 
   const AdminUser({
     required this.id,
@@ -46,6 +49,9 @@ class AdminUser {
     required this.role,
     required this.createdAt,
     this.status = 'active',
+    this.lastLogin,          
+    this.profileImage = '',   
+    this.uploadCount = 0, 
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -72,6 +78,9 @@ class AdminUser {
     String? role,
     String? status,
     DateTime? createdAt,
+    DateTime? lastLogin,
+    String? profileImage,
+    int? uploadCount,
   }) {
     return AdminUser(
       id: id ?? this.id,
@@ -80,6 +89,9 @@ class AdminUser {
       role: role ?? this.role,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
+      lastLogin: lastLogin ?? this.lastLogin,      
+      profileImage: profileImage ?? this.profileImage, 
+      uploadCount: uploadCount ?? this.uploadCount, 
     );
   }
 
