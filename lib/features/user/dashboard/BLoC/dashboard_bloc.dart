@@ -1,12 +1,17 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/core/models/category_model.dart';
+import 'package:study_hub/features/user/repository/user_repository.dart';
 
 part 'dashboard_event.dart';
 part 'dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
+  final UserRepository _repository = UserRepository.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   DashboardBloc() : super(DashboardLoading()) {
     on<DashboardStarted>(_onStarted);
     on<DashboardTabChanged>(_onTabChanged);
@@ -18,9 +23,9 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardSearchChanged>(_onSearchChanged);
     on<CategorySelected>(_onCategorySelected);
     on<CategoryAdded>(_onCategoryAdded);
-    on<GlobalResourceUploadSubmitted>(_onGlobalUpload); // ← add
-    on<GlobalResourceDeleted>(_onGlobalDelete); // ← add
-    on<ResourceSavedToMyResources>(_onSaveToMyResources); // ← add
+    on<GlobalResourceUploadSubmitted>(_onGlobalUpload);
+    on<GlobalResourceDeleted>(_onGlobalDelete);
+    on<ResourceSavedToMyResources>(_onSaveToMyResources);
   }
 
   Future<void> _onStarted(
@@ -29,106 +34,36 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   ) async {
     emit(DashboardLoading());
     try {
-      await Future.delayed(const Duration(milliseconds: 600));
+      final user = _auth.currentUser;
+      if (user == null) {
+        emit(DashboardError('User not authenticated'));
+        return;
+      }
 
-      final categories = [
-        const CategoryModel(
-          id: 'it',
-          name: 'Information Technology',
-          emoji: '💻',
-          description: 'Networking, OS, security basics',
-          resourceCount: 12,
-        ),
-        const CategoryModel(
-          id: 'science',
-          name: 'Science',
-          emoji: '🧪',
-          description: 'Physics, chemistry, biology',
-          resourceCount: 8,
-        ),
-        const CategoryModel(
-          id: 'cookery',
-          name: 'Cookery',
-          emoji: '🍳',
-          description: 'Recipes, techniques, nutrition',
-          resourceCount: 5,
-        ),
-      ];
+      // Load data in parallel
+      final results = await Future.wait([
+        _repository.getGlobalResources(),
+        _repository.getMyResources(user.uid),
+        _repository.getSavedResources(user.uid),
+        _repository.getCategories(),
+      ]);
 
-      final resources = [
-        ResourceModel(
-          id: '1',
-          title: 'HTML Basics — Structure & Tags',
-          categoryId: 'it',
-          categoryName: 'Information Technology',
-          type: ResourceType.article,
-          difficulty: DifficultyLevel.beginner,
-          uploadedBy: 'admin',
-          uploadedAt: DateTime.now().subtract(const Duration(days: 3)),
-          isStarred: true,
-          lastOpenedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        ),
-        ResourceModel(
-          id: '2',
-          title: 'CSS Cheat Sheet',
-          categoryId: 'it',
-          categoryName: 'Information Technology',
-          type: ResourceType.pdf,
-          difficulty: DifficultyLevel.beginner,
-          uploadedBy: 'admin',
-          uploadedAt: DateTime.now().subtract(const Duration(days: 5)),
-        ),
-        ResourceModel(
-          id: '3',
-          title: 'Python Variables & Data Types',
-          categoryId: 'it',
-          categoryName: 'Information Technology',
-          type: ResourceType.article,
-          difficulty: DifficultyLevel.beginner,
-          uploadedBy: 'admin',
-          uploadedAt: DateTime.now().subtract(const Duration(days: 7)),
-          isPinned: true,
-        ),
-        ResourceModel(
-          id: '4',
-          title: 'OSI Model Reference Sheet',
-          categoryId: 'it',
-          categoryName: 'Information Technology',
-          type: ResourceType.pdf,
-          difficulty: DifficultyLevel.beginner,
-          uploadedBy: 'admin',
-          uploadedAt: DateTime.now().subtract(const Duration(days: 10)),
-          isStarred: true,
-        ),
-        ResourceModel(
-          id: '5',
-          title: 'Basic Chemistry Notes',
-          categoryId: 'science',
-          categoryName: 'Science',
-          type: ResourceType.word,
-          difficulty: DifficultyLevel.beginner,
-          uploadedBy: 'admin',
-          uploadedAt: DateTime.now().subtract(const Duration(days: 2)),
-        ),
-        ResourceModel(
-          id: '6',
-          title: 'Knife Skills & Cutting Techniques',
-          categoryId: 'cookery',
-          categoryName: 'Cookery',
-          type: ResourceType.ppt,
-          difficulty: DifficultyLevel.beginner,
-          uploadedBy: 'admin',
-          uploadedAt: DateTime.now().subtract(const Duration(days: 1)),
-          lastOpenedAt: DateTime.now().subtract(const Duration(minutes: 30)),
-        ),
-      ];
+      final globalResources = results[0] as List<ResourceModel>;
+      final myResources = results[1] as List<ResourceModel>;
+      final savedResources = results[2] as List<ResourceModel>;
+      final categories = results[3] as List<CategoryModel>;
 
-      final opened = resources.where((r) => r.lastOpenedAt != null).toList()
+      // Combine all resources for the "all" tab
+      final seen = <String>{};
+      final allResources = [...globalResources, ...myResources, ...savedResources].where((r) => seen.add(r.id)).toList();
+          
+      // Find last opened resource
+      final opened = allResources.where((r) => r.lastOpenedAt != null).toList()
         ..sort((a, b) => b.lastOpenedAt!.compareTo(a.lastOpenedAt!));
 
       emit(
         DashboardLoaded(
-          resources: resources,
+          resources: allResources,
           categories: categories,
           activeTab: DashboardTab.all,
           isDarkMode: true,
@@ -146,68 +81,106 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
   }
 
-  void _onStarToggled(ResourceStarToggled event, Emitter<DashboardState> emit) {
+  void _onStarToggled(ResourceStarToggled event, Emitter<DashboardState> emit) async {
     if (state is DashboardLoaded) {
       final cur = state as DashboardLoaded;
-      emit(
-        cur.copyWith(
-          resources: cur.resources
-              .map(
-                (r) => r.id == event.resourceId
-                    ? r.copyWith(isStarred: !r.isStarred)
-                    : r,
-              )
-              .toList(),
-        ),
-      );
-    }
-  }
+      final user = _auth.currentUser;
+      if (user == null) return;
 
-  void _onPinToggled(ResourcePinToggled event, Emitter<DashboardState> emit) {
-    if (state is DashboardLoaded) {
-      final cur = state as DashboardLoaded;
-      emit(
-        cur.copyWith(
-          resources: cur.resources
-              .map(
-                (r) => r.id == event.resourceId
-                    ? r.copyWith(isPinned: !r.isPinned)
-                    : r,
-              )
-              .toList(),
-        ),
-      );
-    }
-  }
+      try {
+        final resource = cur.resources.firstWhere((r) => r.id == event.resourceId);
+        final isCurrentlyStarred = resource.isStarred;
 
-  void _onMarkedDone(ResourceMarkedDone event, Emitter<DashboardState> emit) {
-    if (state is DashboardLoaded) {
-      final cur = state as DashboardLoaded;
-      emit(
-        cur.copyWith(
-          resources: cur.resources
-              .map(
-                (r) => r.id == event.resourceId ? r.copyWith(isDone: true) : r,
-              )
-              .toList(),
-        ),
-      );
-    }
-  }
-
-  void _onResourceOpened(ResourceOpened event, Emitter<DashboardState> emit) {
-    if (state is DashboardLoaded) {
-      final cur = state as DashboardLoaded;
-      ResourceModel? opened;
-      final updated = cur.resources.map((r) {
-        if (r.id == event.resourceId) {
-          final u = r.copyWith(lastOpenedAt: DateTime.now());
-          opened = u;
-          return u;
+        if (isCurrentlyStarred) {
+          await _repository.unsaveResource(event.resourceId, user.uid);
+        } else {
+          await _repository.saveResource(event.resourceId, user.uid);
         }
-        return r;
-      }).toList();
-      emit(cur.copyWith(resources: updated, lastOpened: opened));
+
+        emit(
+          cur.copyWith(
+            resources: cur.resources
+                .map(
+                  (r) => r.id == event.resourceId
+                      ? r.copyWith(isStarred: !isCurrentlyStarred)
+                      : r,
+                )
+                .toList(),
+          ),
+        );
+      } catch (e) {
+        // Handle error - could emit an error state or just ignore
+      }
+    }
+  }
+
+  void _onPinToggled(ResourcePinToggled event, Emitter<DashboardState> emit) async {
+    if (state is DashboardLoaded) {
+      final cur = state as DashboardLoaded;
+      final resource = cur.resources.firstWhere((r) => r.id == event.resourceId);
+
+      try {
+        await _repository.updateResourceState(event.resourceId, isPinned: !resource.isPinned);
+
+        emit(
+          cur.copyWith(
+            resources: cur.resources
+                .map(
+                  (r) => r.id == event.resourceId
+                      ? r.copyWith(isPinned: !r.isPinned)
+                      : r,
+                )
+                .toList(),
+          ),
+        );
+      } catch (e) {
+        // Handle error
+      }
+    }
+  }
+
+  void _onMarkedDone(ResourceMarkedDone event, Emitter<DashboardState> emit) async {
+    if (state is DashboardLoaded) {
+      final cur = state as DashboardLoaded;
+
+      try {
+        await _repository.updateResourceState(event.resourceId, isDone: true);
+
+        emit(
+          cur.copyWith(
+            resources: cur.resources
+                .map(
+                  (r) => r.id == event.resourceId ? r.copyWith(isDone: true) : r,
+                )
+                .toList(),
+          ),
+        );
+      } catch (e) {
+        // Handle error
+      }
+    }
+  }
+
+  void _onResourceOpened(ResourceOpened event, Emitter<DashboardState> emit) async {
+    if (state is DashboardLoaded) {
+      final cur = state as DashboardLoaded;
+
+      try {
+        await _repository.updateResourceState(event.resourceId, lastOpenedAt: DateTime.now());
+
+        ResourceModel? opened;
+        final updated = cur.resources.map((r) {
+          if (r.id == event.resourceId) {
+            final u = r.copyWith(lastOpenedAt: DateTime.now());
+            opened = u;
+            return u;
+          }
+          return r;
+        }).toList();
+        emit(cur.copyWith(resources: updated, lastOpened: opened));
+      } catch (e) {
+        // Handle error
+      }
     }
   }
 
@@ -260,30 +233,29 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     }
   }
 
-  // ── these must be INSIDE the class ───────────────────────────────────────
   void _onGlobalUpload(
     GlobalResourceUploadSubmitted event,
     Emitter<DashboardState> emit,
-  ) {
+  ) async {
     if (state is DashboardLoaded) {
       final cur = state as DashboardLoaded;
-      final newResource = ResourceModel(
-        id: 'res_${DateTime.now().millisecondsSinceEpoch}',
-        title: event.title,
-        categoryId: event.categoryId,
-        categoryName: event.categoryName,
-        type: ResourceType.values.firstWhere(
-          (t) => t.name == event.fileType,
-          orElse: () => ResourceType.pdf,
-        ),
-        difficulty: event.difficulty == 'Beginner'
-            ? DifficultyLevel.beginner
-            : DifficultyLevel.intermediate,
-        uploadedBy: '',
-        uploadedAt: DateTime.now(),
-        scope: ResourceScope.global,
-      );
-      emit(cur.copyWith(resources: [...cur.resources, newResource]));
+
+      try {
+        await _repository.uploadResource(
+          title: event.title,
+          description: event.description,
+          categoryId: event.categoryId,
+          difficulty: event.difficulty,
+          tags: event.tags,
+          fileName: event.fileName,
+          fileType: event.fileType,
+        );
+
+        // Reload resources to show the new one
+        add(DashboardStarted());
+      } catch (e) {
+        // Handle error - could emit an error state
+      }
     }
   }
 
@@ -306,27 +278,29 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   void _onSaveToMyResources(
     ResourceSavedToMyResources event,
     Emitter<DashboardState> emit,
-  ) {
-    // ── TODO (Firebase) ───────────────────────────────────────────────────
-    // final uid = FirebaseAuth.instance.currentUser!.uid;
-    // await FirebaseFirestore.instance
-    //   .collection('users').doc(uid)
-    //   .collection('saved').doc(event.resourceId)
-    //   .set({'savedAt': FieldValue.serverTimestamp()});
-    // ─────────────────────────────────────────────────────────────────────
+  ) async {
     if (state is DashboardLoaded) {
       final cur = state as DashboardLoaded;
-      // Mark the resource as private (saved to My Resources) in local state
-      emit(
-        cur.copyWith(
-          resources: cur.resources.map((r) {
-            if (r.id == event.resourceId) {
-              return r.copyWith(scope: ResourceScope.private);
-            }
-            return r;
-          }).toList(),
-        ),
-      );
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      try {
+        await _repository.saveResource(event.resourceId, user.uid);
+
+        // Update local state to show it's saved
+        emit(
+          cur.copyWith(
+            resources: cur.resources.map((r) {
+              if (r.id == event.resourceId) {
+                return r.copyWith(isStarred: true);
+              }
+              return r;
+            }).toList(),
+          ),
+        );
+      } catch (e) {
+        // Handle error
+      }
     }
   }
 } // ← class closes HERE, after all handlers
