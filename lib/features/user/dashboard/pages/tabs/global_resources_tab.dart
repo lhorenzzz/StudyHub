@@ -138,20 +138,7 @@ class _GlobalResourcesTabState extends State<GlobalResourcesTab> {
                         )
                       : CategoryDropField(
                           hint: 'Select category',
-                          value: selectedCategoryId.isNotEmpty
-                              ? categories
-                                    .map(
-                                      (c) => {
-                                        'id': c.id,
-                                        'name': c.name,
-                                        'emoji': c.emoji,
-                                      },
-                                    )
-                                    .firstWhere(
-                                      (c) => c['id'] == selectedCategoryId,
-                                      orElse: () => <String, String>{},
-                                    )
-                              : null,
+                          value: selectedCategoryId.isNotEmpty ? selectedCategoryId : null,
                           items: categories
                               .map(
                                 (c) => {
