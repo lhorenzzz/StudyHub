@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:study_hub/core/models/resource_model.dart';
 import 'package:study_hub/features/user/dashboard/BLoC/dashboard_bloc.dart';
 import 'package:study_hub/features/user/dashboard/widgets/theme_helper.dart';
@@ -29,8 +30,9 @@ class MyResourcesTab extends StatelessWidget {
     // once Firebase Auth is wired:
     //   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     //   final myResources = state.resources.where((r) => r.uploadedBy == uid).toList();
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final myResources = state.resources
-        .where((r) => r.scope == ResourceScope.private)
+        .where((r) => r.uploadedBy == uid)
         .toList();
 
     return SingleChildScrollView(
