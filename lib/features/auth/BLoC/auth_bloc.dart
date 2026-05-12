@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:equatable/equatable.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // These two files are "parts" of this file — they share the same library
 part 'auth_event.dart';
@@ -80,20 +81,35 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     RegisterSubmitted event,
     Emitter<AuthState> emit,
   ) async {
-    // Show loading spinner
     emit(AuthLoading());
 
     try {
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
         email: event.email,
         password: event.password,
       );
 
       final user = userCredential.user;
       if (user != null) {
-        // Update display name
+        // Update display name in Auth
         await user.updateDisplayName(event.name);
         await user.reload();
+
+        // ✅ Auto-create Firestore document so user appears in admin panel
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'uid'            : user.uid,
+          'name'           : event.name,
+          'email'          : event.email,
+          'role'           : 'student',
+          'status'         : 'active',
+          'bio'            : '',
+          'profileImageUrl': '',
+          'isActive'       : true,
+          'uploadCount'    : 0,
+          'createdAt'      : FieldValue.serverTimestamp(),
+          'updatedAt'      : FieldValue.serverTimestamp(),
+        });
 
         emit(const AuthSuccess(message: 'Account created successfully!'));
       }
