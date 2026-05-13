@@ -104,6 +104,7 @@ class AdminRepository {
           difficulty: _parseDifficultyLevel((data['difficulty'] as String?) ?? 'beginner'),
           tags: tagsList,
           uploadedBy: (data['uploadedBy'] as String?) ?? '',
+          uploadedByName: (data['uploadedByName'] as String?) ?? '',
           uploadedAt: (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           fileUrl: (data['fileUrl'] as String?) ?? '',
           scope: _parseResourceScope((data['scope'] as String?) ?? 'global'),
@@ -153,6 +154,7 @@ class AdminRepository {
         'fileUrl': '',
         'scope': scope,
         'uploadedBy': user.uid,
+        'uploadedByName': user.displayName ?? user.email?.split('@').first ?? 'Unknown',
         'uploadedAt': FieldValue.serverTimestamp(),
       });
 
