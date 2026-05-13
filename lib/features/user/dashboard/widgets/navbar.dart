@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:study_hub/features/user/dashboard/BLoC/dashboard_bloc.dart';
@@ -9,6 +10,7 @@ class DashboardNavbar extends StatelessWidget {
   final ValueChanged<int> onNavTap;
   final VoidCallback onLogoTap;
   final GlobalKey<ScaffoldState>? scaffoldKey;
+  final String? userName;
   const DashboardNavbar({
     super.key,
     required this.t,
@@ -16,6 +18,7 @@ class DashboardNavbar extends StatelessWidget {
     required this.onNavTap,
     required this.onLogoTap,
     this.scaffoldKey,
+    this.userName,
   });
 
   @override
@@ -82,40 +85,39 @@ class DashboardNavbar extends StatelessWidget {
             onTap: () => context.read<DashboardBloc>().add(ThemeToggled()),
           ),
           const SizedBox(width: 10),
-          if (!isNarrow)
-            // ── TODO (Backend Team) ────────────────────────────────────────
-            // Replace '?' with real user initials from Firebase Auth:
-            //
-            //   final user = FirebaseAuth.instance.currentUser;
-            //   final name = user?.displayName ?? '';
-            //   final initials = name.trim().isEmpty ? '?'
-            //       : name.trim().split(' ').take(2)
-            //           .map((p) => p[0].toUpperCase()).join();
-            //
-            // Pass initials into DashboardNavbar via DashboardLoaded state.
-            // ────────────────────────────────────────────────────────────────
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: t.surface2,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: t.border),
-                ),
-                child: Center(
-                  child: Text(
-                    '?',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: t.text,
+          if (!isNarrow) ...[
+            Builder(
+              builder: (context) {
+                // Use provided userName or fall back to Firebase Auth
+                String displayName = userName ?? (FirebaseAuth.instance.currentUser?.displayName ?? '');
+                final initials = displayName.trim().isEmpty ? '?'
+                    : displayName.trim().split(' ').take(2)
+                        .map((p) => p[0].toUpperCase()).join();
+                return MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: t.surface2,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: t.border),
+                    ),
+                    child: Center(
+                      child: Text(
+                        initials,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: t.text,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             ),
+          ],
           if (isNarrow)
             NavIconBtn(
               child: Icon(Icons.menu_rounded, size: 16, color: t.text),
