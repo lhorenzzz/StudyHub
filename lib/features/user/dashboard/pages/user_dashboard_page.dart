@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:study_hub/core/theme/app_colors.dart';
@@ -72,6 +73,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                     onNavTap: (i) => setState(() => _currentIndex = i),
                     onLogoTap: () => setState(() => _currentIndex = 0),
                     scaffoldKey: _scaffoldKey,
+                    userName: FirebaseAuth.instance.currentUser?.displayName,
                   ),
                   Expanded(
                     child: AnimatedPageSwitcher(

@@ -95,6 +95,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         // Update display name in Auth
         await user.updateDisplayName(event.name);
         await user.reload();
+        await FirebaseAuth.instance.currentUser?.reload();
 
         // ✅ Auto-create Firestore document so user appears in admin panel
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({

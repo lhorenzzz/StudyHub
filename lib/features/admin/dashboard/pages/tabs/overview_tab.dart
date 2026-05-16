@@ -123,13 +123,18 @@ class OverviewTab extends StatelessWidget {
 
           Builder(
             builder: (context) {
+              // ✅ FIX: group by uploadedByName (real name) not uploadedBy (UID)
               final Map<String, List<ResourceModel>> byUser = {};
               for (final r in state.resources) {
-                byUser.putIfAbsent(r.uploadedBy, () => []).add(r);
+                final key = r.uploadedByName.isNotEmpty
+                    ? r.uploadedByName
+                    : r.uploadedBy; // fallback to UID only if name missing
+                byUser.putIfAbsent(key, () => []).add(r);
               }
               final sorted = byUser.entries.toList()
                 ..sort((a, b) => b.value.length.compareTo(a.value.length));
-              final maxCount = sorted.isEmpty ? 1 : sorted.first.value.length;
+              final maxCount =
+                  sorted.isEmpty ? 1 : sorted.first.value.length;
 
               if (sorted.isEmpty) {
                 return Center(
@@ -356,7 +361,7 @@ class _RecentResourceRowState extends State<_RecentResourceRow> {
 
 // ─── UPLOADER ROW ─────────────────────────────────────────────────────────────
 class _UploaderRow extends StatefulWidget {
-  final String uploadedBy;
+  final String uploadedBy; // now receives the display name
   final List<ResourceModel> resources;
   final int maxCount;
   final AdminTheme t;
