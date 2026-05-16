@@ -19,25 +19,13 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -51,12 +39,49 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyA6Tv7oQnUdLeMoimgQoQdY49h8i799seQ',
-    appId: '1:869842355386:web:a8c197a56f3b088a782e83',
-    messagingSenderId: '869842355386',
-    projectId: 'studyhub-4c9d7',
-    authDomain: 'studyhub-4c9d7.firebaseapp.com',
-    storageBucket: 'studyhub-4c9d7.firebasestorage.app',
-    measurementId: 'G-H8WD0SC8X2',
+    apiKey: 'AIzaSyCFuT8qHoJvuPFGSXizxY2kG2te0uSDLlg',
+    appId: '1:563529601079:web:7552387d299768aebcafb2',
+    messagingSenderId: '563529601079',
+    projectId: 'studyhub-dffc6',
+    authDomain: 'studyhub-dffc6.firebaseapp.com',
+    storageBucket: 'studyhub-dffc6.firebasestorage.app',
+    measurementId: 'G-6WMEB3N2KL',
   );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyCshRHV3ZkgGTxlOX3mxyAePMxbsjCOm40',
+    appId: '1:563529601079:ios:17e00b168a3c25e2bcafb2',
+    messagingSenderId: '563529601079',
+    projectId: 'studyhub-dffc6',
+    storageBucket: 'studyhub-dffc6.firebasestorage.app',
+    iosBundleId: 'com.example.studyHub',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCshRHV3ZkgGTxlOX3mxyAePMxbsjCOm40',
+    appId: '1:563529601079:ios:17e00b168a3c25e2bcafb2',
+    messagingSenderId: '563529601079',
+    projectId: 'studyhub-dffc6',
+    storageBucket: 'studyhub-dffc6.firebasestorage.app',
+    iosBundleId: 'com.example.studyHub',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyD_OefAQ5GthzokSH9YVb7PJYNI-C0E4Og',
+    appId: '1:563529601079:android:d358a282d40a82aabcafb2',
+    messagingSenderId: '563529601079',
+    projectId: 'studyhub-dffc6',
+    storageBucket: 'studyhub-dffc6.firebasestorage.app',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCFuT8qHoJvuPFGSXizxY2kG2te0uSDLlg',
+    appId: '1:563529601079:web:2c5203cab931d5f2bcafb2',
+    messagingSenderId: '563529601079',
+    projectId: 'studyhub-dffc6',
+    authDomain: 'studyhub-dffc6.firebaseapp.com',
+    storageBucket: 'studyhub-dffc6.firebasestorage.app',
+    measurementId: 'G-4DGZ0Q9LDK',
+  );
+
 }
